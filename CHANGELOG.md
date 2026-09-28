@@ -2,6 +2,11 @@
 
 Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 
+## 2026-09-28 · Claude Code (style pass)
+- `npm run dev` / `tools/serve.mjs`: zero-dependency dev server on http://localhost:5173 that rebuilds on `prototype/src` changes and live-reloads. `.claude/launch.json` registers it as the "prototype" preview.
+- `styles.css` polish within the §8 design system (palette and chart series unchanged): new tokens (`--brand-grad`, `--nav-grad`, `--shadow-hover`, `--ring`, `--page-glow`, `--ease`), gradient sidebar with glowing active indicator, gradient hero KPI and primary buttons, hover lift on clickable cards/tiles, focus rings on inputs, animated tab underline, tinted table headers and row hover accent, blurred overlays, modal/toast pop-in, thin themed scrollbars, richer login panel. Light and dark checked.
+- **Next:** Cowork republishes the Artifact; then handoff §15 item 3.
+
 ## 2026-09-28 · Claude Code
 - Installed Git and Node.js LTS on the owner's PC (winget); `npm i` + Playwright Chromium; `git init` on `main` (`prototype/dist/` ignored as build output).
 - **Project health formula → settings** (`settings.projectHealth`, new `projectHealth()` in core.js). Settings → Business rules has a "Project health" card with off-track and at-risk thresholds.
