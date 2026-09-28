@@ -1,0 +1,293 @@
+/* =====================================================================
+   Login + role-based dashboards
+   ===================================================================== */
+VIEWS.login = function () {
+  const open = state.tasks.filter(t => t.status !== 'completed').length;
+  const pend = state.approvals.filter(a => a.status === 'pending').length;
+  const demo = [['u_sophea', 'Owner / Board'], ['u_daniel', 'Group CEO'], ['u_amara', 'Subsidiary CEO'], ['u_priya', 'CTO'], ['u_marcus', 'Finance'], ['u_tomas', 'Manager'], ['u_visal', 'Team member'], ['u_rith', 'Team member']];
+  return '<div class="login"><section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Northstar</b><small>Holding OS · prototype</small></div></div>' +
+    '<div class="stack" style="gap:18px"><h1>One operating system for every company in the group.</h1><p>Tasks, approvals, finance, people and performance for Northstar Holdings and its four subsidiaries — each person sees only what their role allows.</p></div>' +
+    '<div class="mini"><div><b>' + state.companies.length + '</b><small>companies</small></div><div><b>' + state.users.length + '</b><small>people</small></div><div><b>' + open + '</b><small>open tasks</small></div><div><b>' + pend + '</b><small>requests in approval</small></div></div>' +
+    '<p class="small" style="opacity:.7">Sample data is fictional. Changes are saved in this browser only.</p></section>' +
+    '<section class="login-form"><div><div class="eyebrow">Sign in</div><h2 style="font-size:24px;margin-top:4px">Welcome back</h2></div>' +
+    '<form id="login-form" class="stack" style="gap:12px" onsubmit="event.preventDefault();ACT[\'login-email\']()">' + field('Work email', '<input class="input" id="login-email" type="email" placeholder="name@northstar.example" autocomplete="username">') + field('Password', '<input class="input" id="login-pass" type="password" placeholder="Any password works in the prototype" autocomplete="current-password">') + '<button class="btn primary" type="submit">Sign in</button><div id="login-err" class="small" style="color:var(--bad)"></div></form>' +
+    '<div class="hr"></div><div><div class="strong">Or pick a demo account</div><div class="muted small">Try the same screens as different roles to see access control at work.</div></div>' +
+    '<div class="acct-grid">' + demo.map(([id, lbl]) => { const u = user(id); return '<button class="acct" data-act="login-as" data-id="' + id + '">' + avatar(u) + '<span class="grow"><b>' + esc(u.name) + '</b><small>' + esc(lbl) + ' · ' + esc(company(u.companyId).short) + '</small></span></button>'; }).join('') + '</div></section></div>';
+};
+ACT['login-email'] = () => {
+  const e = (document.getElementById('login-email').value || '').trim().toLowerCase();
+  const u = state.users.find(x => x.email.toLowerCase() === e && x.active !== false);
+  if (!u) { document.getElementById('login-err').textContent = 'No active account with that email. Use a demo account below, e.g. daniel.reyes@northstar.example'; return; }
+  login(u.id);
+};
+
+function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
+function scopeName() { const ids = activeCompanyIds(); return ids.length === state.companies.length ? 'Entire holding (' + ids.length + ' companies)' : ids.length === 1 ? company(ids[0]).name : ids.length + ' companies'; }
+function ytdRange(y) { y = y || CUR_YEAR; return [y + '-01-01', y + '-' + TODAY_S.slice(5)]; }
+function pageHead(title, sub, actions) { return '<div class="page-head"><div><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div><div class="actions">' + (actions || '') + '</div></div>'; }
+function quickActions() {
+  let h = '';
+  if (can('tasks.create')) h += '<button class="btn" data-act="new-task">' + icon('plus') + 'New task</button>';
+  if (can('approvals.view')) h += '<button class="btn primary" data-act="new-request">' + icon('send') + 'New request</button>';
+  return h;
+}
+function taskRow(t, opt) {
+  opt = opt || {};
+  return '<div class="li clickable" data-act="open" data-t="task" data-id="' + t.id + '"><div class="ico-box ' + (isOverdue(t) ? 'bad' : t.status === 'submitted' ? 'solid' : '') + '">' + icon(t.recurrence ? 'repeat' : 'check') + '</div><div class="grow"><div class="ttl">' + esc(t.title) + '</div><div class="meta">' + (opt.showAssignee ? esc(user(t.assigneeId).name) + ' · ' : '') + esc(company(t.companyId).short) + (t.projectId ? ' · ' + esc(project(t.projectId).name) : '') + '</div></div><div style="text-align:right" class="nowrap"><div>' + taskStatusBadge(t) + '</div><div class="meta" style="margin-top:3px">' + (t.status === 'completed' ? 'Done ' + (t.completedAt ? fmtShort(t.completedAt.slice(0, 10)) : '') : dueLabel(t.dueDate)) + '</div></div></div>';
+}
+function approvalRow(a) {
+  const st = a.steps[a.currentStep];
+  return '<div class="li clickable" data-act="open" data-t="approval" data-id="' + a.id + '"><div class="ico-box ' + (a.status === 'pending' ? 'warn' : a.status === 'approved' ? 'good' : 'bad') + '">' + icon('stamp') + '</div><div class="grow"><div class="ttl">' + esc(a.title) + '</div><div class="meta">' + esc(APPROVAL_TYPES[a.type].label) + ' · ' + esc(user(a.requesterId).name) + ' · ' + esc(company(a.companyId).short) + '</div></div><div style="text-align:right" class="nowrap"><div class="strong num">' + (a.amount ? money(a.amount) : '—') + '</div><div class="meta">' + (a.status === 'pending' && st ? 'Step ' + (a.currentStep + 1) + '/' + a.steps.length : titleCase(a.status)) + '</div></div></div>';
+}
+function reviewQueue() {
+  const items = state.approvals.filter(a => canActOnApproval(a)).map(a => ({ at: a.createdAt, html: approvalRow(a) }))
+    .concat(state.tasks.filter(t => canReviewTask(t)).map(t => ({ at: t.submittedAt || t.createdAt, html: '<div class="li clickable" data-act="open" data-t="task" data-id="' + t.id + '"><div class="ico-box solid">' + icon('check') + '</div><div class="grow"><div class="ttl">' + esc(t.title) + '</div><div class="meta">Task review · ' + esc(user(t.assigneeId).name) + ' submitted work</div></div><div class="nowrap">' + badge('Review', 'b-brand') + '</div></div>' })));
+  items.sort((a, b) => a.at < b.at ? 1 : -1);
+  return items;
+}
+function deadlinesList(tasks, days, limit) {
+  const up = tasks.filter(t => t.status !== 'completed' && daysUntil(t.dueDate) <= days).sort((a, b) => a.dueDate < b.dueDate ? -1 : 1).slice(0, limit || 7);
+  return up.length ? '<div class="list">' + up.map(t => taskRow(t, { showAssignee: true })).join('') + '</div>' : emptyState('No deadlines in the next ' + days + ' days.');
+}
+function projectCard(p, alt) {
+  const st = projectStats(p); const [hl] = HEALTH[st.health];
+  return '<button class="pcard ' + (alt ? 'alt' : '') + '" data-act="open" data-t="project" data-id="' + p.id + '"><div class="p-top"><span>' + esc(company(p.companyId).short) + '</span><span>' + fmtShort(p.dueDate) + '</span></div><h4>' + esc(p.name) + '</h4><div class="p-bot"><div class="row" style="justify-content:space-between"><span>Progress · ' + hl + '</span><b class="num">' + st.progress + '%</b></div>' + progressBar(st.progress) + '</div></button>';
+}
+function alertsFor(ids) {
+  const out = [];
+  if (can('finance.view')) {
+    lowCashCompanies(ids).forEach(r => out.push(['bad', 'dollar', company(r.companyId).name + ' cash below ' + state.settings.cashAlertMonths + ' months of costs', money(r.cash, { compact: true }) + ' · ' + fmtRunway(r.months) + ' runway', { page: 'finance', tab: 'cash' }]));
+    const bl =budgetRows(ids, CUR_YEAR).filter(b => b.util >= state.settings.budgetAlertPct).sort((a, b) => b.util - a.util);
+    bl.slice(0, 3).forEach(b => out.push(['warn', 'coins', 'Budget ' + fmtPct(b.util) + ' used', dept(b.departmentId).name + ' · ' + b.category + ' (' + company(b.companyId).short + ')', { page: 'finance', tab: 'budgets' }]));
+    const od = state.invoices.filter(i => ids.includes(i.companyId) && invoiceStatus(i) === 'overdue');
+    if (od.length) out.push(['bad', 'dollar', money(sum(od, i => i.amount - i.paid)) + ' overdue receivables', od.length + ' invoices past due', { page: 'finance', tab: 'receivables' }]);
+  }
+  state.risks.filter(r => ids.includes(r.companyId) && r.status !== 'closed' && ['high', 'critical'].includes(r.severity)).forEach(r => out.push([r.severity === 'critical' ? 'bad' : 'warn', 'alert', r.title, r.key + ' · ' + titleCase(r.severity) + ' · ' + user(r.ownerId).name, { page: 'operations' }, r.id]));
+  const od = state.tasks.filter(t => ids.includes(t.companyId) && isOverdue(t) && visibleTask(t));
+  if (od.length) out.push(['bad', 'clock', od.length + ' overdue tasks', 'Across ' + uniq(od.map(t => t.companyId)).length + ' companies', { page: 'tasks' }]);
+  return out;
+}
+function alertsList(items, limit) {
+  if (!items.length) return emptyState('No alerts. Everything is within thresholds.');
+  return '<div class="list">' + items.slice(0, limit || 6).map(([k, ic, t, m, link, rid]) => '<div class="li clickable" ' + (rid ? 'data-act="open" data-t="risk" data-id="' + rid + '"' : 'data-act="follow" data-link=\'' + esc(JSON.stringify(link)) + '\'') + '><div class="ico-box ' + k + '">' + icon(ic) + '</div><div class="grow"><div class="ttl">' + esc(t) + '</div><div class="meta">' + esc(m) + '</div></div></div>').join('') + '</div>';
+}
+ACT.follow = el => followLink(JSON.parse(el.dataset.link));
+
+/* ---------- metrics used by several dashboards ---------- */
+function deptPerformance(ids, deptIds) {
+  const since = rel(-180);
+  const rows = [];
+  for (const d of state.departments.filter(d => ids.includes(d.companyId) && (!deptIds || deptIds.includes(d.id)))) {
+    const ts = state.tasks.filter(t => t.departmentId === d.id);
+    if (!ts.length) continue;
+    const done = ts.filter(t => t.status === 'completed' && t.completedAt && t.completedAt.slice(0, 10) >= since);
+    const onTime = done.filter(t => t.completedAt.slice(0, 10) <= t.dueDate).length;
+    const open = ts.filter(t => t.status !== 'completed');
+    const overdue = open.filter(isOverdue).length;
+    rows.push({ id: d.id, name: d.name, company: d.companyId, done: done.length, onTime: done.length ? onTime / done.length * 100 : null, open: open.length, overdue, score: done.length ? (onTime / done.length * 100) - overdue * 5 : null });
+  }
+  return rows;
+}
+function teamRows(userIds) {
+  const since = rel(-180);
+  return userIds.map(user).map(u => {
+    const ts = state.tasks.filter(t => t.assigneeId === u.id);
+    const open = ts.filter(t => t.status !== 'completed');
+    const done = ts.filter(t => t.status === 'completed' && t.completedAt && t.completedAt.slice(0, 10) >= since);
+    const onTime = done.filter(t => t.completedAt.slice(0, 10) <= t.dueDate).length;
+    return { id: u.id, u, open: open.length, overdue: open.filter(isOverdue).length, review: ts.filter(t => t.status === 'submitted').length, done: done.length, onTime: done.length ? onTime / done.length * 100 : null };
+  });
+}
+function financeTiles(ids) {
+  const [f, t] = ytdRange(); const [lf, lt] = ytdRange(CUR_YEAR - 1);
+  const p = pnl(ids, f, t), lp = pnl(ids, lf, lt);
+  const cash = cashPosition(ids); const cash30 = cashPosition(ids, rel(-30));
+  return kpiTile('Revenue YTD', money(p.revenue, { compact: true }), deltaTxt(p.revenue, lp.revenue, false, 'vs same period ' + (CUR_YEAR - 1)), { hero: true, icon: 'chart', act: 'go-finance' }) +
+    kpiTile('Expenses YTD', money(p.expenses, { compact: true }), deltaTxt(p.expenses, lp.expenses, true, 'vs ' + (CUR_YEAR - 1)), { icon: 'coins', act: 'go-finance' }) +
+    kpiTile('Net profit YTD', money(p.net, { compact: true }), '<span class="' + (p.net >= 0 ? 'up' : 'down') + '">' + fmtPct(p.revenue ? p.net / p.revenue * 100 : 0, 1) + ' margin</span> <span class="muted">· ' + money(lp.net, { compact: true }) + ' last year</span>', { icon: 'target', act: 'go-finance' }) +
+    kpiTile('Cash position', money(cash, { compact: true }), deltaTxt(cash, cash30, false, 'vs 30 days ago'), { icon: 'dollar', act: 'go-cash' });
+}
+ACT['go-finance'] = () => { App.ui.finTab = 'statements'; go('finance'); };
+ACT['go-cash'] = () => { App.ui.finTab = 'cash'; go('finance'); };
+function revExpChart(ids, n) {
+  const ms = monthlySeries(ids, lastNMonths(n || 12));
+  return barChart({ labels: ms.map(m => m.label), series: [{ name: 'Revenue', color: 'var(--s1)', values: ms.map(m => m.revenue) }, { name: 'Expenses', color: 'var(--s2)', values: ms.map(m => m.expenses) }], tipTitle: i => MONTHS_L[ms[i].m] + ' ' + ms[i].y, tipExtra: i => [['var(--muted)', 'Net', money(ms[i].net)]], aria: 'Monthly revenue and expenses' });
+}
+
+/* ---------- dashboards ---------- */
+VIEWS.dashboard = function () {
+  const r = me().role;
+  if (r === 'owner' || r === 'ceo') return dashExec();
+  if (r === 'cto') return dashCto();
+  if (r === 'finance') return dashFinance();
+  if (r === 'manager') return dashManager();
+  return dashMember();
+};
+function dashExec() {
+  const u = me(); const ids = activeCompanyIds();
+  const tasks = state.tasks.filter(t => ids.includes(t.companyId));
+  const projs = state.projects.filter(p => ids.includes(p.companyId) && p.status !== 'completed');
+  const queue = reviewQueue();
+  let h = pageHead(greeting() + ', ' + esc(u.name.replace(/^Dr\. /, '').split(' ')[0]), fmtDate(TODAY_S) + ' · ' + esc(scopeName()), quickActions());
+  if (can('finance.view')) h += '<div class="grid g4" style="margin-bottom:16px">' + financeTiles(ids) + '</div>';
+  else h += '<div class="grid g4" style="margin-bottom:16px">' + workTiles(tasks, projs) + '</div>';
+  h += '<div class="grid g-2-1" style="margin-bottom:16px">' +
+    (can('finance.view') ? card('Revenue vs expenses', revExpChart(ids), { sub: 'Last 12 months · posted transactions', actions: '<button class="btn sm ghost" data-act="go-finance">Statements ' + icon('arrowR') + '</button>' }) : card('Work completed', weeklyThroughput(tasks), { sub: 'Tasks approved per week' })) +
+    card('Needs your decision', queue.length ? '<div class="list">' + queue.slice(0, 6).map(x => x.html).join('') + '</div>' : emptyState('Nothing is waiting on you.'), { flush: true, sub: queue.length + ' waiting', actions: '<button class="btn sm ghost" data-act="nav" data-page="approvals">Approval Center ' + icon('arrowR') + '</button>' }) + '</div>';
+  h += companyPerfCard(ids);
+  h += '<div class="grid g3" style="margin:16px 0">' +
+    card('Projects needing attention', (() => { const risky = projs.map(p => [p, projectStats(p)]).filter(([, s]) => s.health !== 'on_track').slice(0, 6); return risky.length ? '<div class="list">' + risky.map(([p, s]) => '<div class="li clickable" data-act="open" data-t="project" data-id="' + p.id + '"><div class="grow"><div class="ttl">' + esc(p.name) + '</div><div class="meta">' + esc(company(p.companyId).short) + ' · ' + s.overdue + ' overdue · due ' + fmtShort(p.dueDate) + '</div></div>' + badge(HEALTH[s.health][0], HEALTH[s.health][1]) + '</div>').join('') + '</div>' : emptyState('All projects on track.'); })(), { flush: true }) +
+    card('Upcoming deadlines', deadlinesList(tasks.filter(t => ['critical', 'high'].includes(t.priority) || t.assigneeId === u.id), 14, 6), { flush: true, sub: 'High-priority work, next 14 days' }) +
+    card('Risks & alerts', alertsList(alertsFor(ids)), { flush: true }) + '</div>';
+  h += '<div class="grid g2">' + card('Department performance', deptPerfBars(ids), { sub: 'On-time completion, last 6 months' }) + card('Work status across the group', taskStatusMix(tasks) + '<div class="hr"></div>' + (can('finance.view') ? budgetSummary(ids) : ''), { sub: tasks.filter(t => t.status !== 'completed').length + ' open tasks' }) + '</div>';
+  return h;
+}
+function workTiles(tasks, projs) {
+  const open = tasks.filter(t => t.status !== 'completed');
+  const done30 = tasks.filter(t => t.completedAt && t.completedAt.slice(0, 10) >= rel(-30));
+  const onTime = done30.filter(t => t.completedAt.slice(0, 10) <= t.dueDate).length;
+  return kpiTile('Active projects', String(projs.filter(p => p.status === 'active').length), '<span class="muted">' + projs.map(projectStats).filter(s => s.health !== 'on_track').length + ' need attention</span>', { hero: true, icon: 'folder', act: 'nav-projects' }) +
+    kpiTile('Open tasks', String(open.length), '<span class="muted">' + open.filter(t => t.status === 'submitted').length + ' awaiting review</span>', { icon: 'check', act: 'nav-tasks' }) +
+    kpiTile('Overdue', String(open.filter(isOverdue).length), '<span class="' + (open.filter(isOverdue).length ? 'down' : 'up') + '">' + (open.length ? fmtPct(open.filter(isOverdue).length / open.length * 100) : '0%') + ' of open work</span>', { icon: 'clock', act: 'nav-tasks' }) +
+    kpiTile('Completed · 30 days', String(done30.length), '<span class="muted">' + (done30.length ? fmtPct(onTime / done30.length * 100) : '—') + ' on time</span>', { icon: 'ok' });
+}
+ACT['nav-projects'] = () => go('projects'); ACT['nav-tasks'] = () => go('tasks');
+function weeklyThroughput(tasks) {
+  const labels = [], vals = [], late = [];
+  for (let w = 11; w >= 0; w--) {
+    const end = addDays(TODAY, -w * 7), start = addDays(end, -6);
+    const done = tasks.filter(t => t.completedAt && t.completedAt.slice(0, 10) >= ymd(start) && t.completedAt.slice(0, 10) <= ymd(end));
+    labels.push(fmtShort(ymd(start))); vals.push(done.filter(t => t.completedAt.slice(0, 10) <= t.dueDate).length); late.push(done.filter(t => t.completedAt.slice(0, 10) > t.dueDate).length);
+  }
+  return barChart({ labels, series: [{ name: 'On time', color: 'var(--s1)', values: vals }, { name: 'Late', color: 'var(--s2)', values: late }], stacked: true, fmt: v => String(Math.round(v)), tipTitle: i => 'Week of ' + labels[i], aria: 'Tasks completed per week' });
+}
+function taskStatusMix(tasks) {
+  const cols = { todo: 'var(--line-2)', in_progress: 'var(--s4)', submitted: 'var(--s1)', changes: 'var(--s2)', blocked: 'var(--bad)' };
+  return stackBarEl(Object.keys(cols).map(k => ({ label: TASK_STATUS[k].label, value: tasks.filter(t => t.status === k).length, color: cols[k] })));
+}
+function deptPerfBars(ids, deptIds) {
+  const rows = deptPerformance(ids, deptIds).filter(r => r.onTime != null).sort((a, b) => b.onTime - a.onTime).slice(0, 8);
+  if (!rows.length) return emptyState('Not enough completed work yet.');
+  return hbars(rows.map(r => ({ label: r.name, sub: company(r.company).short + ' · ' + r.done + ' done · ' + r.overdue + ' overdue', value: r.onTime, color: companyColor(r.company) })), { fmt: v => fmtPct(v), name: 'On-time rate' });
+}
+function budgetSummary(ids) {
+  const rows = budgetRows(ids, CUR_YEAR); const b = sum(rows, r => r.amount), a = sum(rows, r => r.actual);
+  const elapsed = (CUR_MONTH + TODAY.getDate() / 31) / 12 * 100;
+  return '<div class="row" style="justify-content:space-between"><span class="strong">Budget used (' + CUR_YEAR + ')</span><span class="num strong">' + money(a, { compact: true }) + ' / ' + money(b, { compact: true }) + '</span></div><div style="margin:8px 0 4px">' + progressBar(pct(a, b), pct(a, b) > elapsed + 5 ? 'warn' : '') + '</div><div class="muted small">' + pct(a, b) + '% used with ' + Math.round(elapsed) + '% of the year elapsed · ' + rows.filter(r => r.util >= state.settings.budgetAlertPct).length + ' lines over the ' + state.settings.budgetAlertPct + '% alert threshold ' + cfg() + '</div>';
+}
+function companyPerfCard(ids) {
+  const [f, t] = ytdRange();
+  const fin = can('finance.view');
+  const rows = ids.map(company).map(c => {
+    const p = fin ? pnl([c.id], f, t) : null;
+    const ts = state.tasks.filter(x => x.companyId === c.id); const open = ts.filter(x => x.status !== 'completed');
+    const ps = state.projects.filter(x => x.companyId === c.id && x.status === 'active').map(projectStats);
+    const ks = state.kpis.filter(k => k.companyId === c.id);
+    const br = fin ? budgetRows([c.id], CUR_YEAR) : [];
+    return { id: c.id, c, p, open: open.length, overdue: open.filter(isOverdue).length, risky: ps.filter(s => s.health !== 'on_track').length, active: ps.length, kGood: ks.filter(k => kpiStatus(k) === 'good').length, kTot: ks.length, bud: br.length ? pct(sum(br, x => x.actual), sum(br, x => x.amount)) : null };
+  });
+  const cols = [{ h: 'Company', v: r => '<span class="row" style="flex-wrap:nowrap"><i style="width:10px;height:10px;border-radius:3px;background:' + companyColor(r.id) + ';flex:none"></i><b>' + esc(r.c.name) + '</b></span>' }];
+  if (fin) cols.push({ h: 'Revenue YTD', r: 1, v: r => money(r.p.revenue, { compact: true }) }, { h: 'Net profit', r: 1, v: r => '<span class="' + (r.p.net < 0 ? 'down' : '') + '">' + money(r.p.net, { compact: true }) + '</span>' }, { h: 'Margin', r: 1, v: r => r.p.revenue ? fmtPct(r.p.net / r.p.revenue * 100, 1) : '<span class="muted">cost centre</span>' }, { h: 'Budget used', r: 1, v: r => r.bud == null ? '—' : r.bud + '%' });
+  cols.push({ h: 'Projects', r: 1, v: r => r.active + (r.risky ? ' <span class="badge b-warn plain">' + r.risky + ' at risk</span>' : '') }, { h: 'Open / overdue', r: 1, v: r => r.open + ' / <span class="' + (r.overdue ? 'down' : '') + '">' + r.overdue + '</span>' }, { h: 'KPIs on target', r: 1, v: r => r.kTot ? r.kGood + '/' + r.kTot : '—' });
+  return card('Company performance', tableEl(cols, rows, { rowAct: 'open-company' }), { flush: true, sub: fin ? 'Year to date · click a company for detail' : 'Operational view', actions: can('reports.view') ? '<button class="btn sm ghost" data-act="nav" data-page="reports">Compare in Reports ' + icon('arrowR') + '</button>' : '' });
+}
+ACT['open-company'] = el => go('companies', { id: el.dataset.id });
+
+function dashCto() {
+  const u = me(); const ids = activeCompanyIds();
+  const tasks = state.tasks.filter(t => ids.includes(t.companyId));
+  const projs = state.projects.filter(p => ids.includes(p.companyId) && p.status !== 'completed');
+  const queue = reviewQueue();
+  let h = pageHead(greeting() + ', ' + esc(u.name.split(' ')[0]), fmtDate(TODAY_S) + ' · Delivery & technology view · ' + esc(scopeName()), quickActions());
+  h += noticeEl('Financial figures are hidden for your role. Finance and the CEO can grant access in Settings → Roles & permissions.', '', 'lock');
+  h += '<div class="grid g4" style="margin:16px 0">' + workTiles(tasks, projs) + '</div>';
+  h += '<div class="grid g-2-1" style="margin-bottom:16px">' + card('Project portfolio', projectTable(projs), { flush: true, sub: projs.length + ' in flight', actions: '<button class="btn sm ghost" data-act="nav" data-page="projects">All projects ' + icon('arrowR') + '</button>' }) + card('Needs your review', queue.length ? '<div class="list">' + queue.slice(0, 6).map(x => x.html).join('') + '</div>' : emptyState('Nothing is waiting on you.'), { flush: true }) + '</div>';
+  h += '<div class="grid g3" style="margin-bottom:16px">' + card('Work completed', weeklyThroughput(tasks), { sub: 'Approved tasks per week, on time vs late' }) + card('Upcoming deadlines', deadlinesList(tasks, 10, 6), { flush: true }) + card('Risks & issues', alertsList(alertsFor(ids).filter(a => a[1] !== 'coins' && a[1] !== 'dollar')), { flush: true }) + '</div>';
+  h += '<div class="grid g2">' + card('Workload by department', hbars(deptPerformance(ids).sort((a, b) => b.open - a.open).slice(0, 8).map(r => ({ label: r.name, sub: company(r.company).short + ' · ' + r.overdue + ' overdue', value: r.open, color: companyColor(r.company) })), { fmt: v => String(v), name: 'Open tasks' }), { sub: 'Open tasks' }) + card('Department performance', deptPerfBars(ids), { sub: 'On-time completion, last 6 months' }) + '</div>';
+  return h;
+}
+function projectTable(projs) {
+  return tableEl([
+    { h: 'Project', v: p => '<b>' + esc(p.name) + '</b><div class="muted small">' + esc(company(p.companyId).short) + ' · ' + esc(user(p.ownerId).name) + '</div>' },
+    { h: 'Progress', v: p => { const s = projectStats(p); return '<div class="row" style="flex-wrap:nowrap;gap:8px"><div style="flex:1;min-width:70px">' + progressBar(s.progress) + '</div><span class="num small">' + s.progress + '%</span></div>'; } },
+    { h: 'Health', v: p => { const s = projectStats(p); return badge(HEALTH[s.health][0], HEALTH[s.health][1]); } },
+    { h: 'Due', nowrap: 1, v: p => fmtShort(p.dueDate) },
+  ], projs.slice().sort((a, b) => a.dueDate < b.dueDate ? -1 : 1), { rowAct: 'open-project' });
+}
+ACT['open-project'] = el => go('projects', { id: el.dataset.id });
+
+function dashFinance() {
+  const u = me(); const ids = activeCompanyIds();
+  const ar = aging(state.invoices.filter(i => ids.includes(i.companyId)));
+  const apDue = state.bills.filter(b => ids.includes(b.companyId) && b.amount > b.paid && daysUntil(b.dueDate) <= 30);
+  const drafts = state.transactions.filter(t => t.status === 'draft' && ids.includes(t.companyId));
+  const queue = reviewQueue();
+  let h = pageHead(greeting() + ', ' + esc(u.name.split(' ')[0]), fmtDate(TODAY_S) + ' · Finance & accounting · ' + esc(scopeName()), '<button class="btn" data-act="new-tx">' + icon('plus') + 'Record transaction</button>' + quickActions());
+  h += '<div class="grid g4" style="margin-bottom:16px">' +
+    kpiTile('Cash position', money(cashPosition(ids), { compact: true }), deltaTxt(cashPosition(ids), cashPosition(ids, rel(-30)), false, 'vs 30 days ago'), { hero: true, icon: 'dollar', act: 'go-cash' }) +
+    kpiTile('Receivables outstanding', money(arOutstanding(ids), { compact: true }), '<span class="' + (ar.d30 + ar.d60 + ar.d90 ? 'down' : 'up') + '">' + money(ar.d30 + ar.d60 + ar.d90, { compact: true }) + ' overdue</span>', { icon: 'arrowR', act: 'go-ar' }) +
+    kpiTile('Payables due ≤ 30 days', money(sum(apDue, b => b.amount - b.paid), { compact: true }), '<span class="muted">' + apDue.length + ' bills</span>', { icon: 'arrowL', act: 'go-ap' }) +
+    kpiTile('Drafts to post', String(drafts.length), '<span class="muted">' + drafts.filter(d => !d.docs.length).length + ' missing documents</span>', { icon: 'file', act: 'go-tx' }) + '</div>';
+  h += '<div class="grid g-2-1" style="margin-bottom:16px">' + card('Revenue vs expenses', revExpChart(ids), { sub: 'Last 12 months' }) + card('Awaiting your approval', queue.length ? '<div class="list">' + queue.slice(0, 6).map(x => x.html).join('') + '</div>' : emptyState('Nothing is waiting on you.'), { flush: true }) + '</div>';
+  h += '<div class="grid g3" style="margin-bottom:16px">' +
+    card('Cash by company', hbars(ids.map(id => ({ label: company(id).name, value: cashPosition([id]), color: companyColor(id) })).sort((a, b) => b.value - a.value)), { sub: 'All bank & cash accounts' }) +
+    card('Receivables aging', stackBarEl([{ label: 'Current', value: Math.round(ar.current), color: 'var(--s3)' }, { label: '1–30 days', value: Math.round(ar.d30), color: 'var(--s4)' }, { label: '31–60', value: Math.round(ar.d60), color: 'var(--s2)' }, { label: '60+', value: Math.round(ar.d90), color: 'var(--bad)' }], v => money(v, { compact: true }), 'Outstanding'), { sub: 'Outstanding by days past due' }) +
+    card('Drafts to post', drafts.length ? '<div class="list">' + drafts.slice(0, 5).map(t => '<div class="li clickable" data-act="open" data-t="transaction" data-id="' + t.id + '"><div class="ico-box ' + (t.docs.length ? '' : 'warn') + '">' + icon('file') + '</div><div class="grow"><div class="ttl">' + esc(t.memo) + '</div><div class="meta">' + t.no + ' · ' + esc(company(t.companyId).short) + (t.docs.length ? '' : ' · no document') + '</div></div><b class="num">' + money(t.amount) + '</b></div>').join('') + '</div>' : emptyState('Ledger is up to date.'), { flush: true }) + '</div>';
+  h += card('Budget alerts', budgetTable(budgetRows(ids, CUR_YEAR).filter(b => b.util >= state.settings.budgetAlertPct).sort((a, b) => b.util - a.util)), { flush: true, sub: 'Lines at or above ' + state.settings.budgetAlertPct + '% utilization ' + cfg() });
+  return h;
+}
+ACT['go-ar'] = () => { App.ui.finTab = 'receivables'; go('finance'); };
+ACT['go-ap'] = () => { App.ui.finTab = 'payables'; go('finance'); };
+ACT['go-tx'] = () => { App.ui.finTab = 'transactions'; App.ui.txStatus = 'draft'; go('finance'); };
+
+function dashManager() {
+  const u = me();
+  const depts = deptTree(u.departmentId);
+  const teamIds = uniq(subordinates(u.id).concat(state.users.filter(x => depts.includes(x.departmentId)).map(x => x.id))).filter(id => id !== u.id);
+  const tasks = state.tasks.filter(t => visibleTask(t) && (depts.includes(t.departmentId) || teamIds.includes(t.assigneeId) || t.assigneeId === u.id));
+  const open = tasks.filter(t => t.status !== 'completed');
+  const queue = reviewQueue();
+  const projs = state.projects.filter(p => visibleProject(p) && p.status !== 'completed');
+  const scopeTxt = u.scope === 'company' ? company(u.companyId).name : dept(u.departmentId).name + ' · ' + company(u.companyId).short;
+  let h = pageHead(greeting() + ', ' + esc(u.name.split(' ')[0]), fmtDate(TODAY_S) + ' · ' + esc(scopeTxt), quickActions());
+  let budTile = '';
+  if (can('budget.view_own')) {
+    const br = budgetRows([u.companyId], CUR_YEAR).filter(b => depts.includes(b.departmentId));
+    const b = sum(br, x => x.amount), a = sum(br, x => x.actual);
+    budTile = kpiTile('Department budget used', b ? pct(a, b) + '%' : '—', '<span class="muted">' + money(a, { compact: true }) + ' of ' + money(b, { compact: true }) + '</span>', { icon: 'coins' });
+  } else budTile = kpiTile('Team size', String(teamIds.length), '', { icon: 'users' });
+  h += '<div class="grid g4" style="margin-bottom:16px">' + kpiTile('Team open tasks', String(open.length), '<span class="muted">' + open.filter(t => t.status === 'in_progress').length + ' in progress</span>', { hero: true, icon: 'check', act: 'nav-tasks' }) + kpiTile('Overdue', String(open.filter(isOverdue).length), '<span class="' + (open.filter(isOverdue).length ? 'down' : 'up') + '">' + (open.filter(isOverdue).length ? 'Needs follow-up' : 'All on schedule') + '</span>', { icon: 'clock', act: 'nav-tasks' }) + kpiTile('Waiting on you', String(queue.length), '<span class="muted">reviews & approvals</span>', { icon: 'stamp', act: 'nav-approvals' }) + budTile + '</div>';
+  const tr = teamRows(teamIds);
+  h += '<div class="grid g-2-1" style="margin-bottom:16px">' + card('Team workload', tableEl([
+    { h: 'Person', v: r => person(r.id) + '<div class="muted small" style="margin-left:32px">' + esc(r.u.title) + '</div>' },
+    { h: 'Open', r: 1, v: r => r.open }, { h: 'Overdue', r: 1, v: r => '<span class="' + (r.overdue ? 'down strong' : '') + '">' + r.overdue + '</span>' },
+    { h: 'In review', r: 1, v: r => r.review }, { h: 'Done · 6 mo', r: 1, v: r => r.done }, { h: 'On time', r: 1, v: r => r.onTime == null ? '—' : fmtPct(r.onTime) }], tr, { rowAct: 'open-person', empty: 'No direct reports.' }), { flush: true, sub: teamIds.length + ' people' }) +
+    card('Needs your review', queue.length ? '<div class="list">' + queue.slice(0, 6).map(x => x.html).join('') + '</div>' : emptyState('Nothing is waiting on you.'), { flush: true }) + '</div>';
+  h += '<div class="stack" style="margin-bottom:16px"><div class="row" style="justify-content:space-between"><h3 style="font-size:15px">Your projects</h3><button class="btn sm ghost" data-act="nav" data-page="projects">All projects ' + icon('arrowR') + '</button></div><div class="grid g4">' + (projs.length ? projs.slice(0, 4).map((p, i) => projectCard(p, i > 0)).join('') : emptyState('No active projects in your area.')) + '</div></div>';
+  h += '<div class="grid g3">' + card('Upcoming deadlines', deadlinesList(tasks, 10, 6), { flush: true }) + card('Department performance', deptPerfBars([u.companyId], depts.concat(uniq(teamIds.map(i => user(i).departmentId)))), { sub: 'On-time completion, last 6 months' }) + card(esc(company(u.companyId).short) + ' KPIs', kpiMini(state.kpis.filter(k => k.companyId === u.companyId)), { flush: true }) + '</div>';
+  return h;
+}
+ACT['nav-approvals'] = () => go('approvals');
+ACT['open-person'] = el => openDrawer('person', el.dataset.id);
+function kpiMini(ks) {
+  if (!ks.length) return emptyState('No KPIs defined for this company.');
+  const col = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' };
+  return '<div class="list">' + ks.map(k => { const st = kpiStatus(k); const v = k.values[k.values.length - 1]; return '<div class="li"><div class="grow"><div class="ttl">' + esc(k.name) + '</div><div class="meta">Target ' + fmtKpi(k, k.target) + '</div></div>' + sparkline(k.values, col[st], 80, 26) + '<div style="text-align:right;min-width:74px"><div class="strong num">' + fmtKpi(k, v) + '</div>' + badge(st === 'good' ? 'On target' : st === 'warn' ? 'Near' : 'Off', st === 'good' ? 'b-good' : st === 'warn' ? 'b-warn' : 'b-bad') + '</div></div>'; }).join('') + '</div>';
+}
+
+function dashMember() {
+  const u = me();
+  const mine = state.tasks.filter(t => t.assigneeId === u.id);
+  const open = mine.filter(t => t.status !== 'completed').sort((a, b) => a.dueDate < b.dueDate ? -1 : 1);
+  const week = open.filter(t => daysUntil(t.dueDate) <= 7 && daysUntil(t.dueDate) >= 0);
+  const reqs = state.approvals.filter(a => a.requesterId === u.id);
+  const projs = state.projects.filter(p => visibleProject(p) && p.status !== 'completed');
+  let h = '<div class="page-head"><div><div class="eyebrow">' + fmtDate(TODAY_S) + '</div><h1 style="font-size:28px;font-weight:500;margin-top:4px">Hello, <b style="font-weight:800">' + esc(u.name.split(' ')[0]) + '!</b></h1><p>' + (open.filter(isOverdue).length ? 'You have ' + open.filter(isOverdue).length + ' overdue task' + (open.filter(isOverdue).length > 1 ? 's' : '') + ' — start there.' : week.length ? week.length + ' task' + (week.length > 1 ? 's are' : ' is') + ' due this week.' : 'Nothing urgent today. Have a good day.') + '</p></div><div class="actions">' + quickActions() + '</div></div>';
+  h += '<div class="grid g4" style="margin-bottom:16px">' + kpiTile('My open tasks', String(open.length), '', { hero: true, icon: 'check', act: 'nav-tasks' }) + kpiTile('Due this week', String(week.length), '', { icon: 'calendar' }) + kpiTile('Overdue', String(open.filter(isOverdue).length), '', { icon: 'clock' }) + kpiTile('Waiting for review', String(open.filter(t => t.status === 'submitted').length), '<span class="muted">submitted by you</span>', { icon: 'send' }) + '</div>';
+  if (projs.length) h += '<div class="grid g4" style="margin-bottom:16px">' + projs.slice(0, 4).map((p, i) => projectCard(p, i > 0)).join('') + '</div>';
+  h += '<div class="grid g-2-1" style="margin-bottom:16px">' + card('My tasks', open.length ? '<div class="list">' + open.map(t => taskRow(t)).join('') + '</div>' : emptyState('No open tasks. Nice work.'), { flush: true, actions: '<button class="btn sm ghost" data-act="nav" data-page="tasks">Board view ' + icon('arrowR') + '</button>' }) +
+    '<div class="stack">' + card('My requests', reqs.length ? '<div class="list">' + reqs.slice(0, 5).map(approvalRow).join('') + '</div>' : emptyState('You have not submitted any requests.'), { flush: true, actions: '<button class="btn sm" data-act="new-request">' + icon('plus') + 'New</button>' }) +
+    card('Recent notifications', (() => { const ns = myNotifications().slice(0, 5); return ns.length ? '<div class="list">' + ns.map(n => '<div class="li clickable" data-act="mark-read" data-id="' + n.id + '"><div class="grow"><div class="ttl" style="' + (n.read ? 'font-weight:500' : '') + '">' + esc(n.title) + '</div><div class="meta">' + ago(n.at) + '</div></div></div>').join('') + '</div>' : emptyState('No notifications.'); })(), { flush: true }) + '</div></div>';
+  h += card('Recently completed', (() => { const d = mine.filter(t => t.status === 'completed').sort((a, b) => (a.completedAt || '') < (b.completedAt || '') ? 1 : -1).slice(0, 5); return d.length ? '<div class="list">' + d.map(t => taskRow(t)).join('') + '</div>' : emptyState('Nothing completed yet.'); })(), { flush: true });
+  return h;
+}

@@ -1,0 +1,38 @@
+{
+  "_readme": "TEMPLATE ONLY. Copy the providers you choose into ../.mcp.json. Secrets come from environment variables (set them in your shell or a git-ignored .env) — never paste keys here. Verify each provider's current setup docs before enabling. Use sandbox/test credentials first and read-only scopes where offered.",
+  "mcpServers": {
+    "stripe": {
+      "_docs": "https://docs.stripe.com/mcp — OAuth via `claude /mcp`, or an Agent API key. From 2026-10-31 only Agent keys or OAuth are accepted.",
+      "type": "http",
+      "url": "https://mcp.stripe.com",
+      "headers": { "Authorization": "Bearer ${STRIPE_AGENT_API_KEY}" }
+    },
+    "quickbooks": {
+      "_docs": "https://github.com/intuit/quickbooks-online-mcp-server — local server, OAuth app credentials from the Intuit developer portal. Check the repo README for the exact start command and env var names.",
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "<package-or-path-from-intuit-readme>"],
+      "env": {
+        "QUICKBOOKS_CLIENT_ID": "${QUICKBOOKS_CLIENT_ID}",
+        "QUICKBOOKS_CLIENT_SECRET": "${QUICKBOOKS_CLIENT_SECRET}",
+        "QUICKBOOKS_ENVIRONMENT": "sandbox"
+      }
+    },
+    "xero": {
+      "_docs": "Official xero-mcp-server (self-hosted). Uses a Xero custom connection or OAuth app. Check its README for the package name and env vars.",
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "<package-from-xero-readme>"],
+      "env": {
+        "XERO_CLIENT_ID": "${XERO_CLIENT_ID}",
+        "XERO_CLIENT_SECRET": "${XERO_CLIENT_SECRET}"
+      }
+    },
+    "hq": {
+      "_docs": "OUR OWN server (handoff.md §11.3) — does not exist yet. Read-only first; runs with the signed-in user's permissions.",
+      "type": "http",
+      "url": "${HQ_MCP_URL}",
+      "headers": { "Authorization": "Bearer ${HQ_TOKEN}" }
+    }
+  }
+}
