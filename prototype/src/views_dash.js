@@ -4,7 +4,7 @@
 VIEWS.login = function () {
   const open = state.tasks.filter(t => t.status !== 'completed').length;
   const pend = state.approvals.filter(a => a.status === 'pending').length;
-  const demo = [['u_sophea', 'Owner / Board'], ['u_daniel', 'Group CEO'], ['u_amara', 'Subsidiary CEO'], ['u_priya', 'CTO'], ['u_marcus', 'Finance'], ['u_tomas', 'Manager'], ['u_visal', 'Team member'], ['u_rith', 'Team member']];
+  const demo = [['u_kim', 'CEO'], ['u_snakeman', 'CTO'], ['u_nadia', 'CMO'], ['u_sokha', 'Finance'], ['u_vannak', 'Manager'], ['u_ethan', 'Manager'], ['u_piseth', 'Team member'], ['u_mony', 'Team member']];
   return '<div class="login"><section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Northstar</b><small>Holding OS · prototype</small></div></div>' +
     '<div class="stack" style="gap:18px"><h1>One operating system for every company in the group.</h1><p>Tasks, approvals, finance, people and performance for Northstar Holdings and its four subsidiaries — each person sees only what their role allows.</p></div>' +
     '<div class="mini"><div><b>' + state.companies.length + '</b><small>companies</small></div><div><b>' + state.users.length + '</b><small>people</small></div><div><b>' + open + '</b><small>open tasks</small></div><div><b>' + pend + '</b><small>requests in approval</small></div></div>' +
@@ -204,8 +204,8 @@ function revExpChart(ids, n) {
 /* ---------- dashboards ---------- */
 VIEWS.dashboard = function () {
   const r = me().role;
-  if (r === 'owner' || r === 'ceo') return dashExec();
-  if (r === 'cto') return dashCto();
+  if (r === 'ceo') return dashExec();
+  if (r === 'cto' || r === 'cmo') return dashCto();
   if (r === 'finance') return dashFinance();
   if (r === 'manager') return dashManager();
   return dashMember();

@@ -2,6 +2,14 @@
 
 Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 
+## 2026-09-29 · Claude Code — new roles and people (branch `feat/roles-people`)
+- **Roles** are now CEO, CTO, **CMO** (new, same permissions as CTO), Finance / Accounting, Manager, Team Member. **Owner / Board removed**; the CEO has every permission and always keeps admin. Permissions otherwise unchanged. The CMO sees the CTO dashboard.
+- **People** (sample data) replaced: CEO **Kim Sreyneang**, CTO **Snakeman**, CMO Nadia Rahman, managers Vannak Chea and Ethan Park, finance Sokha Lim and Rachel Tan, team members Piseth Noun, Lina Ortiz, Mony Keo, Jonah Reed. All tasks, projects, approvals, KPIs, risks and documents of the 27 old people were handed to one of the new people.
+- Without an Owner: "Major projects" and "Major contracts" rules now go Finance → CEO, and the escalation role is Finance (so the CEO's own requests are approved by Finance). Both are placeholders in Settings.
+- `VERSION` 4 → 5: browsers reseed; **existing cloud workspaces (e.g. Alex's) will ask "Reset to sample data / Keep (read-only)"** after this is deployed.
+- Tests: role list, headcount per role, CEO/CTO names, CMO = CTO permissions, no references to removed people, no self-approval in sample data. All green.
+- **Next:** owner reviews in the preview, then merge to `main`.
+
 ## 2026-09-29 · Claude Code — accounts moved to the owner's main email
 - GitHub repo transferred **Sidiyatouch/management-app → sreyneanginvictus-health/management-app** (account on sreyneang.invictus@gmail.com). Old URL redirects. Local `origin` updated.
 - Vercel: login switched from the Sidiyatouch GitHub to sreyneanginvictus-health; sreyneang.invictus@gmail.com added as login email (verification pending, then make it primary); project Git connection re-linked to the new repo. Vercel team/project/domain unchanged.

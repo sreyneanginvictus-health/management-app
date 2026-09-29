@@ -189,24 +189,24 @@ await A.click('#auth-form button[type=submit]');
 ok(await waitFor(A, 'state && Cloud.ws && document.querySelector(".topbar")', 5000), 'sign up lands in a workspace within 5 s');
 console.log(`Sign-up → dashboard: ${Date.now() - t0} ms`);
 ok(await A.evaluate("Cloud.ws.name === 'My workspace' && Cloud.ws.role === 'owner' && state.tasks.length > 10"), 'new workspace seeded with sample data');
-ok(await A.evaluate("me().role === 'owner'"), 'acts as the Owner persona by default');
+ok(await A.evaluate("me().role === 'ceo'"), 'acts as the CEO persona by default');
 ok(!('session' in wsOf('alice@example.com').state), 'session is not stored in the cloud');
 await A.screenshot({ path: join(tmp, 'dashboard.png') });
 
 // Change → autosave → reload keeps it
-await A.evaluate("state.settings.budgetAlertPct = 77; createTask({ title: 'Cloud test task', assigneeId: 'u_visal', companyId: 'c_digital', departmentId: 'd_d_eng', due: TODAY_S, priority: 'medium' }); render()");
+await A.evaluate("state.settings.budgetAlertPct = 77; createTask({ title: 'Cloud test task', assigneeId: 'u_piseth', companyId: 'c_digital', departmentId: 'd_d_eng', due: TODAY_S, priority: 'medium' }); render()");
 ok(await saved(A), 'change autosaves');
 ok(wsOf('alice@example.com').state.settings.budgetAlertPct === 77 && wsOf('alice@example.com').revision === 2, 'server has the change (revision 2)');
 const rpcBefore = DB.rpcCalls;
 await A.evaluate("go('tasks'); go('finance'); go('dashboard')");
 await A.waitForTimeout(2000);
 ok(DB.rpcCalls === rpcBefore, 'navigating without changes does not save');
-await A.evaluate("login('u_daniel')");   // Act as… is per person: stays in this browser
+await A.evaluate("login('u_snakeman')");   // Act as… is per person: stays in this browser
 await A.waitForTimeout(1800);
 await A.reload();
 ok(await waitFor(A, 'state && Cloud.ws'), 'still signed in after reload');
 ok(await A.evaluate("state.settings.budgetAlertPct === 77 && state.tasks.some(t => t.title === 'Cloud test task')"), 'change survives reload');
-ok(await A.evaluate("me().id === 'u_daniel'"), 'Act as persona remembered in this browser');
+ok(await A.evaluate("me().id === 'u_snakeman'"), 'Act as persona remembered in this browser');
 
 // Second device (B): wrong password, then sign in
 const B = await device();
@@ -214,7 +214,7 @@ await signIn(B, 'alice@example.com', 'wrong-password-1');
 ok(await waitFor(B, "document.getElementById('auth-msg').textContent.includes('Wrong email or password')"), 'wrong password message');
 await signIn(B, 'alice@example.com', 'correct-horse-1');
 ok(await waitFor(B, 'state && Cloud.ws'), 'sign in on a second device');
-ok(await B.evaluate("state.settings.budgetAlertPct === 77 && me().role === 'owner'"), 'second device sees the saved data (own persona)');
+ok(await B.evaluate("state.settings.budgetAlertPct === 77 && me().role === 'ceo'"), 'second device sees the saved data (own persona)');
 
 // Conflict: A saves, then stale B saves
 await A.evaluate("state.settings.budgetAlertPct = 81; render()"); ok(await saved(A), 'A saves');

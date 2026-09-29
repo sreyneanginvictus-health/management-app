@@ -172,7 +172,7 @@ function cloudResolveOld(choice) {
 function cloudActivate(shared, updatedAt) {
   state = shared;
   let sess = null; try { sess = JSON.parse(localStorage.getItem(SESSION_PREFIX + Cloud.ws.id) || 'null'); } catch (e) { }
-  const persona = (state.users || []).find(u => u.role === 'owner' && u.active !== false) || (state.users || [])[0] || { id: null };
+  const persona = (state.users || []).find(u => u.role === 'ceo' && u.active !== false) || (state.users || [])[0] || { id: null };
   state.session = Object.assign({ userId: persona.id, companyFilter: 'all' }, sess || {});
   if (!state.users.some(u => u.id === state.session.userId && u.active !== false)) state.session.userId = persona.id;
   Cloud.lastJson = JSON.stringify(sharedState(state));
