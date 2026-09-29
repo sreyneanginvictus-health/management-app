@@ -10,7 +10,7 @@
 | Public site | https://management-app-ashy.vercel.app (Vercel, auto-deploys every push to `main`) |
 | Repo | https://github.com/sreyneanginvictus-health/management-app (public; moved from `Sidiyatouch` on 2026-09-29, old URL redirects, no license = all rights reserved) |
 | Database | Supabase project `management-app` (org Sidiyatouch, Free, Singapore `ap-southeast-1`) — linked, not yet used by the app |
-| Prototype codename | "Northstar Holding OS" (fictional sample company, replace with real data later) |
+| App name | **Negroni** (renamed from "Northstar Holding OS" on 2026-09-29). Sample data: one company, **Longevity project** |
 | Status | v0.1 functional prototype — single HTML file, sample data. **Real accounts + cloud-saved workspaces are built (branch `feat/p0-accounts`, §15 P0.3) but not live yet: the owner does §15 P0.1 first, then merge to `main`.** |
 | Last updated | 2026-09-29 by Claude Code |
 
@@ -112,14 +112,15 @@ Demo accounts are on the sign-in screen (any password works). Switch users from 
 
 | Person | Role | Scope | Good for testing |
 |---|---|---|---|
-| Sophea Chan | Owner / Board | Entire holding | Final approvals on large contracts/projects |
-| Daniel Reyes | Group CEO | Entire holding | Executive dashboard, 5 pending decisions |
-| Dr. Amara Okafor | CEO, Northstar Health | Own company | Subsidiary CEO sees one company only |
-| Priya Nair | CTO | Entire holding | No finance by default — access control demo |
-| Marcus Lee / Linh Tran | Finance | Entire holding | Ledger, posting, reversals, statements |
-| Ravi Patel | Finance (Digital) | Own company | Company-level finance approver |
-| Tomás Alvarez | Manager | Own department | Team workload, task reviews, board |
-| Visal Heng / Rith Sok | Team Member | Own work | Simple member dashboard |
+| Kim Sreyneang | CEO | Entire holding | Executive dashboard, final approvals, all settings |
+| Snakeman | CTO | Entire holding | No finance by default — access control demo |
+| Nadia Rahman | CMO | Entire holding | Same permissions as the CTO |
+| Sokha Lim / Rachel Tan | Finance / Accounting | Entire holding | Ledger, posting, reversals, statements |
+| Vannak Chea | Manager (Group Operations) | Entire holding | Team workload and reviews for Health, Logistics, Properties, HQ |
+| Ethan Park | Manager (Engineering, Digital) | Own company | Task reviews, board, Digital projects |
+| Piseth Noun / Lina Ortiz / Mony Keo / Jonah Reed | Team Member | Own work | Simple member dashboard |
+
+Roster set by the owner on 2026-09-29: roles are only CEO, CTO, CMO, Finance / Accounting, Manager, Team Member (no Owner / Board). CEO and CTO names were given by the owner; the CMO, managers, finance and team members are fictional sample names.
 
 ### File map
 
@@ -206,7 +207,7 @@ All collections live in `state`. Field names below are the contract to carry int
 1. **Permissions (per role)** decide modules and actions. Keys: `dashboard.view, tasks.view, tasks.create, projects.view, projects.manage, approvals.view, approvals.view_all, operations.view, finance.view, finance.manage, finance.confidential, budget.view_own, reports.view, reports.finance, kpi.update, companies.view, companies.manage, people.view, people.manage, documents.view, calendar.view, settings.admin, audit.view`.
 2. **Data scope (per person)** decides records: `holding` (all companies) · `company` (own company) · `department` (own department tree + direct/indirect reports) · `self` (own work).
 
-**Defaults:** Owner & CEO = all permissions. CTO = work/ops/reports, **no finance**. Finance = finance + audit + financial reports. Manager = work, own department budget, KPIs. Member = own tasks, requests, documents, calendar.
+**Defaults:** CEO = all permissions (always keeps admin). CTO and CMO = work/ops/reports, **no finance**. Finance = finance + audit + financial reports. Manager = work, own department budget, KPIs. Member = own tasks, requests, documents, calendar.
 
 **Rules implemented:** sidebar shows only permitted sections; confidential money requests (expense/budget/payment/contract) are hidden from roles without `finance.view` unless they are the requester or an approver; confidential documents need `finance.confidential`; the Owner can never lose `settings.admin` (lock-out guard).
 
@@ -230,7 +231,7 @@ All collections live in `state`. Field names below are the contract to carry int
 - Types: expense, purchase, payment, budget, hiring, project, vendor, contract, other. Task reviews also appear in "Waiting on me".
 - **Rules are data:** `{type, name, cond: {op, value} | null, steps: [role…], enabled}`. For a request, the matching rule with the highest threshold wins, else the rule without a condition.
 - Approver roles: `manager` (requester's manager), `dept_head`, `finance` (company finance first, then group), `ceo` (company CEO, else group CEO), `cto`, `owner`.
-- **Self-approval blocked**; if no eligible approver remains, the step **escalates** to `settings.escalationRole` (Owner).
+- **Self-approval blocked**; if no eligible approver remains, the step **escalates** to `settings.escalationRole` (Finance since 2026-09-29 — there is no Owner role, so the CEO's own requests go to Finance).
 - Consecutive steps resolving to the same single person collapse into one.
 - **Effects on final approval:** expense/purchase → draft ledger entry for Finance to post · payment → pays the linked bill (posted entry) · budget → increases the budget line · project → Proposed becomes Active · hiring → notifies People & HR.
 - Requester can withdraw a pending request. Reject needs a reason.
@@ -260,15 +261,15 @@ Everything here is stored in `state.settings` and editable in **Settings**. Repl
 | Payments above X | $10,000 → Finance → CEO; else Finance | Approval rules | Placeholder |
 | Budget changes | Finance → CEO | Approval rules | Placeholder |
 | New headcount | Manager → CEO | Approval rules | Placeholder |
-| Projects above X | $50,000 → CEO → Owner; else CEO | Approval rules | Placeholder |
-| Contracts above X | $25,000 → CEO → Owner; else Manager → CEO | Approval rules | Placeholder |
+| Projects above X | $50,000 → Finance → CEO; else CEO | Approval rules | Placeholder |
+| Contracts above X | $25,000 → Finance → CEO; else Manager → CEO | Approval rules | Placeholder |
 | Vendor onboarding | Manager → Finance | Approval rules | Placeholder |
 | Allow self-approval | Off | Business rules | Recommended off |
 | Document required to post | On | Business rules | Placeholder |
 | Task review required | On | Business rules | Placeholder |
 | Budget alert threshold | 80% | Business rules | Placeholder |
 | Deadline reminder | 2 days before due | Business rules | Placeholder |
-| Escalation role | Owner | Business rules | Placeholder |
+| Escalation role | Finance | Business rules | Placeholder — confirm with owner (was Owner / Board, removed 2026-09-29) |
 | Currency | USD, single currency | Business rules | Multi-currency is Phase 2 |
 | Project health formula | at risk if ≥1 overdue task, >85% budget spent, or <70% progress within 21 days of due; off track if spent >100% of budget, ≥3 overdue, or past due | Business rules → Project health (`settings.projectHealth`, `projectHealth()` in core.js) | Placeholder; configurable |
 | Cash-low alert | Alert when a company's runway < **2 months** (0 = off). Runway = cash ÷ avg monthly costs (all posted expenses incl. capex & loan repayments) over the last **3** full months | Business rules (`settings.cashAlertMonths`, `runwayLookbackMonths`); shown in Finance → Bank & cash, dashboard alerts, login notifications | Placeholder; configurable |
@@ -511,6 +512,9 @@ interface Connector {
 | 2026-09-29 | Real accounts + cloud-saved data is the #1 priority (§15 P0) so Alex can sign up and prototype; first version stores each workspace as one JSON document in Supabase, normalized tables come later (§15 item 7) | Owner |
 | 2026-09-29 | Public GitHub repo + Vercel hosting (production public) + Supabase in Singapore with auto-RLS and no auto-exposed tables; app keeps browser storage for now | Owner |
 | 2026-09-29 | P0 built on a branch; vendored supabase-js 2.117.2 served from our own domain (not a CDN); cloud mode switches on automatically when the build sees the Supabase URL + publishable key; default "Act as" persona = sample Owner | Claude Code |
+| 2026-09-29 | Roles reduced to CEO, CTO, CMO, Finance / Accounting, Manager, Team Member (Owner / Board removed); CMO = same permissions as CTO; people: CEO Kim Sreyneang, CTO Snakeman, 1 CMO, 2 managers, 2 finance, 4 team members | Owner |
+| 2026-09-29 | With no Owner role: large project/contract rules become Finance → CEO, escalation role = Finance (placeholders) | Claude Code (owner to confirm) |
+| 2026-09-29 | App renamed **Negroni**; sample data reduced to one company (**Longevity project**) with one task, one project and one approval; finance, budgets, KPIs and documents regenerated for that company | Owner |
 | 2026-09-28 | Runway = cash ÷ average monthly posted expenses (incl. capex and loan repayments) over the last N full months; `prototype/dist/` is not committed (build output) | Claude Code (placeholder, owner to confirm) |
 
 ---

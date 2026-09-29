@@ -224,7 +224,7 @@ function myPendingApprovals() {
 }
 function sidebarHtml() {
   const counts = { approvals: myPendingApprovals(), notifications: unreadCount(), tasks: state.tasks.filter(t => t.assigneeId === me().id && t.status !== 'completed').length };
-  let h = '<div class="brand"><div class="brand-mark">' + LOGO + '</div><div><b>Northstar</b><small>Holding OS</small></div></div>';
+  let h = '<div class="brand"><div class="brand-mark">' + LOGO + '</div><div><b>Negroni</b><small>Management OS</small></div></div>';
   for (const [grp, items] of NAV) {
     const vis = items.filter(it => !it[3] || can(it[3])); if (!vis.length) continue;
     h += '<div class="nav-label">' + grp + '</div>';

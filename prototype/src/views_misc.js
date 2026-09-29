@@ -13,7 +13,7 @@ function allDocs() {
   for (const a of state.approvals) if (a.attachments.length && visibleApproval(a)) a.attachments.forEach(f => out.push({ id: f.id, name: f.name, companyId: a.companyId, source: 'Request', category: a.no, by: f.by || a.requesterId, at: f.at || a.createdAt, size: f.size, link: { type: 'approval', id: a.id } }));
   if (fin) {
     for (const t of state.transactions) if (scopeCompanyIds().includes(t.companyId) && t.date >= rel(-120)) t.docs.forEach(f => out.push({ id: f.id, name: f.name, companyId: t.companyId, source: 'Finance', category: t.no, by: t.createdBy, at: (t.postedAt || t.date + 'T12:00:00'), size: f.size, confidential: true, link: { type: 'transaction', id: t.id } }));
-    for (const i of state.invoices.concat(state.bills)) if (scopeCompanyIds().includes(i.companyId)) (i.docs || []).forEach(f => out.push({ id: f.id, name: f.name, companyId: i.companyId, source: 'Finance', category: i.number, by: 'u_linh', at: (i.issueDate || i.date) + 'T12:00:00', size: f.size, confidential: true, link: { type: i.customer ? 'invoice' : 'bill', id: i.id } }));
+    for (const i of state.invoices.concat(state.bills)) if (scopeCompanyIds().includes(i.companyId)) (i.docs || []).forEach(f => out.push({ id: f.id, name: f.name, companyId: i.companyId, source: 'Finance', category: i.number, by: 'u_rachel', at: (i.issueDate || i.date) + 'T12:00:00', size: f.size, confidential: true, link: { type: i.customer ? 'invoice' : 'bill', id: i.id } }));
   }
   out.sort((a, b) => a.at < b.at ? 1 : -1);
   return { docs: out, hidden };
@@ -126,7 +126,7 @@ function setProfile() {
 CHANGE['notif-pref'] = el => { const u = me(); u.notifPrefs = u.notifPrefs || {}; u.notifPrefs[el.dataset.k] = el.checked; saveState(); toast('Preference saved'); };
 function setRules() {
   const rules = state.settings.approvalRules;
-  const test = App.ui.ruleTest || { type: 'expense', amount: 2400, requesterId: 'u_tomas' };
+  const test = App.ui.ruleTest || { type: 'expense', amount: 2400, requesterId: 'u_ethan' };
   const tu = user(test.requesterId);
   const prev = routePreview({ type: test.type, amount: Number(test.amount) || 0, companyId: tu.companyId, departmentId: tu.departmentId, requesterId: tu.id });
   let h = noticeEl('Rules are checked top-down per request type: the highest matching amount threshold wins, otherwise the rule without a condition applies. Sample: <b>expenses above $1,000 require CEO approval</b> — edit the amount below. Requesters are always skipped as approvers; if nobody else qualifies the step escalates to ' + roleLabel(state.settings.escalationRole) + '.', '', 'shield') + '<div style="height:16px"></div>';
@@ -148,7 +148,7 @@ Object.assign(CHANGE, {
   'rule-op': el => { const r = ruleById(el.dataset.id); if (!el.value) { r.cond = null; } else { r.cond = { op: el.value, value: r.cond ? r.cond.value : 1000 }; } ruleChanged(r, 'condition ' + (r.cond ? 'amount ' + r.cond.op + ' ' + r.cond.value : 'removed')); render(); },
   'rule-val': el => { const r = ruleById(el.dataset.id); const o = r.cond.value; r.cond.value = Math.max(0, Number(el.value) || 0); ruleChanged(r, 'threshold ' + money(o) + ' → ' + money(r.cond.value)); toast('Threshold updated — new requests use ' + money(r.cond.value)); render(); },
   'rule-step': el => { const r = ruleById(el.dataset.id); const i = Number(el.dataset.i); const o = r.steps[i]; r.steps[i] = el.value; ruleChanged(r, 'step ' + (i + 1) + ' ' + APPROVER_ROLES[o] + ' → ' + APPROVER_ROLES[el.value]); render(); },
-  'rule-test': el => { App.ui.ruleTest = App.ui.ruleTest || { type: 'expense', amount: 2400, requesterId: 'u_tomas' }; App.ui.ruleTest[el.dataset.k] = el.value; render(); },
+  'rule-test': el => { App.ui.ruleTest = App.ui.ruleTest || { type: 'expense', amount: 2400, requesterId: 'u_ethan' }; App.ui.ruleTest[el.dataset.k] = el.value; render(); },
 });
 Object.assign(ACT, {
   'rule-step-add': el => { const r = ruleById(el.dataset.id); r.steps.push('ceo'); ruleChanged(r, 'added step'); render(); },
@@ -195,7 +195,7 @@ function setRoles() {
   const groups = groupBy(PERMISSIONS, p => p.group);
   let h = noticeEl('Changing a role affects everyone who holds it, immediately. Data scope (holding, company, department, own work) is set per person in People and limits which records each module shows.', '', 'lock') + '<div style="height:12px"></div>';
   h += card('', '<div class="table-wrap"><table class="t perm-matrix"><thead><tr><th>Permission</th>' + ROLE_KEYS.map(r => '<th>' + esc(roleLabel(r)) + '</th>').join('') + '</tr></thead><tbody>' +
-    Object.entries(groups).map(([g, ps]) => '<tr><td colspan="' + (ROLE_KEYS.length + 1) + '" class="strong" style="background:var(--surface-2)">' + esc(g) + '</td></tr>' + ps.map(p => '<tr><td>' + esc(p.label) + '<div class="muted small mono">' + p.key + '</div></td>' + ROLE_KEYS.map(r => { const locked = r === 'owner' && p.key === 'settings.admin'; return '<td><input type="checkbox" data-act-change="perm" data-r="' + r + '" data-p="' + p.key + '"' + (state.roles[r].perms.includes(p.key) ? ' checked' : '') + (locked ? ' disabled title="Owner always keeps admin access"' : '') + ' aria-label="' + esc(roleLabel(r) + ': ' + p.label) + '" style="width:16px;height:16px;accent-color:var(--brand)"></td>'; }).join('') + '</tr>').join('')).join('') +
+    Object.entries(groups).map(([g, ps]) => '<tr><td colspan="' + (ROLE_KEYS.length + 1) + '" class="strong" style="background:var(--surface-2)">' + esc(g) + '</td></tr>' + ps.map(p => '<tr><td>' + esc(p.label) + '<div class="muted small mono">' + p.key + '</div></td>' + ROLE_KEYS.map(r => { const locked = r === 'ceo' && p.key === 'settings.admin'; return '<td><input type="checkbox" data-act-change="perm" data-r="' + r + '" data-p="' + p.key + '"' + (state.roles[r].perms.includes(p.key) ? ' checked' : '') + (locked ? ' disabled title="The CEO always keeps admin access"' : '') + ' aria-label="' + esc(roleLabel(r) + ': ' + p.label) + '" style="width:16px;height:16px;accent-color:var(--brand)"></td>'; }).join('') + '</tr>').join('')).join('') +
     '<tr><td class="strong">Default data scope for new people</td>' + ROLE_KEYS.map(r => '<td>' + selectEl('ds-' + r, Object.entries(SCOPES).map(([k, v]) => [k, v]), state.roles[r].defaultScope, 'data-act-change="role-scope" data-r="' + r + '" style="padding:4px 6px;font-size:12px"') + '</td>').join('') + '</tr></tbody></table></div>', { flush: true });
   return h;
 }
@@ -244,7 +244,7 @@ Object.assign(ACT, {
   'ws-export': () => {
     const blob = new Blob([JSON.stringify(sharedState(state), null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = (Cloud.ws ? Cloud.ws.name : 'northstar').replace(/[^\w-]+/g, '-').toLowerCase() + '-' + TODAY_S + '.json';
+    a.download = (Cloud.ws ? Cloud.ws.name : 'negroni').replace(/[^\w-]+/g, '-').toLowerCase() + '-' + TODAY_S + '.json';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
 });

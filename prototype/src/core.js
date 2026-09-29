@@ -1,11 +1,11 @@
 /* =====================================================================
-   Northstar HCMS — core: helpers, store, permissions, audit, engines
+   Negroni — core: helpers, store, permissions, audit, engines
    Architecture note: everything reads/writes one normalized `state`
    object (collections keyed like DB tables). Swapping localStorage for
    an API later only touches load/save + the engine functions below.
    ===================================================================== */
 'use strict';
-const VERSION = 4;
+const VERSION = 6;
 const STORE_KEY = 'northstar-hcms-state';
 
 /* ---------- date + format helpers ---------- */
@@ -124,16 +124,18 @@ const PERMISSIONS = [
 const ALL_PERMS = PERMISSIONS.map(p => p.key);
 function defaultRoles() {
   const base = ['dashboard.view', 'tasks.view', 'approvals.view', 'documents.view', 'calendar.view'];
-  return {
-    owner: { label: 'Owner / Board', level: 6, defaultScope: 'holding', perms: ALL_PERMS.slice() },
+  const r = {
     ceo: { label: 'CEO', level: 5, defaultScope: 'holding', perms: ALL_PERMS.slice() },
     cto: { label: 'CTO', level: 4, defaultScope: 'holding', perms: base.concat(['tasks.create', 'projects.view', 'projects.manage', 'approvals.view_all', 'operations.view', 'reports.view', 'kpi.update', 'companies.view', 'people.view', 'budget.view_own']) },
+    cmo: { label: 'CMO', level: 4, defaultScope: 'holding', perms: [] },  // same permissions as the CTO (filled in below)
     finance: { label: 'Finance / Accounting', level: 3, defaultScope: 'holding', perms: base.concat(['tasks.create', 'projects.view', 'approvals.view_all', 'finance.view', 'finance.manage', 'finance.confidential', 'budget.view_own', 'reports.view', 'reports.finance', 'companies.view', 'people.view', 'audit.view']) },
     manager: { label: 'Manager', level: 3, defaultScope: 'department', perms: base.concat(['tasks.create', 'projects.view', 'projects.manage', 'operations.view', 'reports.view', 'kpi.update', 'companies.view', 'people.view', 'budget.view_own']) },
     member: { label: 'Team Member', level: 1, defaultScope: 'self', perms: base.concat(['projects.view']) },
   };
+  r.cmo.perms = r.cto.perms.slice();
+  return r;
 }
-const ROLE_KEYS = ['owner', 'ceo', 'cto', 'finance', 'manager', 'member'];
+const ROLE_KEYS = ['ceo', 'cto', 'cmo', 'finance', 'manager', 'member'];
 const SCOPES = { holding: 'Entire holding', company: 'Own company', department: 'Own department', self: 'Own work only' };
 function roleLabel(r) { return (state.roles[r] || {}).label || titleCase(r); }
 function can(perm, u) { u = u || me(); const r = state.roles[u.role]; return !!(r && r.perms.includes(perm)); }
@@ -351,7 +353,7 @@ const APPROVAL_TYPES = {
   budget: { label: 'Budget', money: true }, hiring: { label: 'Hiring', money: true }, project: { label: 'Project', money: true },
   vendor: { label: 'Vendor', money: false }, contract: { label: 'Contract', money: true }, other: { label: 'Other request', money: false },
 };
-const APPROVER_ROLES = { manager: 'Direct manager', dept_head: 'Department head', finance: 'Finance', cto: 'CTO', ceo: 'CEO', owner: 'Owner / Board' };
+const APPROVER_ROLES = { manager: 'Direct manager', dept_head: 'Department head', finance: 'Finance', cto: 'CTO', cmo: 'CMO', ceo: 'CEO' };
 function cmp(a, op, b) { a = Number(a) || 0; b = Number(b) || 0; return op === '>' ? a > b : op === '>=' ? a >= b : op === '<' ? a < b : op === '<=' ? a <= b : a === b; }
 function sortedRules(type) {
   return state.settings.approvalRules.filter(r => r.type === type && r.enabled)

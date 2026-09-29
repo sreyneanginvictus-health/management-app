@@ -4,27 +4,27 @@
 VIEWS.login = function () {
   const open = state.tasks.filter(t => t.status !== 'completed').length;
   const pend = state.approvals.filter(a => a.status === 'pending').length;
-  const demo = [['u_sophea', 'Owner / Board'], ['u_daniel', 'Group CEO'], ['u_amara', 'Subsidiary CEO'], ['u_priya', 'CTO'], ['u_marcus', 'Finance'], ['u_tomas', 'Manager'], ['u_visal', 'Team member'], ['u_rith', 'Team member']];
-  return '<div class="login"><section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Northstar</b><small>Holding OS · prototype</small></div></div>' +
-    '<div class="stack" style="gap:18px"><h1>One operating system for every company in the group.</h1><p>Tasks, approvals, finance, people and performance for Northstar Holdings and its four subsidiaries — each person sees only what their role allows.</p></div>' +
-    '<div class="mini"><div><b>' + state.companies.length + '</b><small>companies</small></div><div><b>' + state.users.length + '</b><small>people</small></div><div><b>' + open + '</b><small>open tasks</small></div><div><b>' + pend + '</b><small>requests in approval</small></div></div>' +
+  const demo = [['u_kim', 'CEO'], ['u_snakeman', 'CTO'], ['u_nadia', 'CMO'], ['u_sokha', 'Finance'], ['u_vannak', 'Manager'], ['u_ethan', 'Manager'], ['u_piseth', 'Team member'], ['u_mony', 'Team member']];
+  return '<div class="login"><section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Negroni</b><small>Management OS · prototype</small></div></div>' +
+    '<div class="stack" style="gap:18px"><h1>One place to run the whole company.</h1><p>Tasks, approvals, finance, people and performance for Longevity project — each person sees only what their role allows.</p></div>' +
+    '<div class="mini"><div><b>' + state.companies.length + '</b><small>' + (state.companies.length === 1 ? 'company' : 'companies') + '</small></div><div><b>' + state.users.length + '</b><small>people</small></div><div><b>' + open + '</b><small>open tasks</small></div><div><b>' + pend + '</b><small>requests in approval</small></div></div>' +
     '<p class="small" style="opacity:.7">Sample data is fictional. Changes are saved in this browser only.</p></section>' +
     '<section class="login-form"><div><div class="eyebrow">Sign in</div><h2 style="font-size:24px;margin-top:4px">Welcome back</h2></div>' +
-    '<form id="login-form" class="stack" style="gap:12px" onsubmit="event.preventDefault();ACT[\'login-email\']()">' + field('Work email', '<input class="input" id="login-email" type="email" placeholder="name@northstar.example" autocomplete="username">') + field('Password', '<input class="input" id="login-pass" type="password" placeholder="Any password works in the prototype" autocomplete="current-password">') + '<button class="btn primary" type="submit">Sign in</button><div id="login-err" class="small" style="color:var(--bad)"></div></form>' +
+    '<form id="login-form" class="stack" style="gap:12px" onsubmit="event.preventDefault();ACT[\'login-email\']()">' + field('Work email', '<input class="input" id="login-email" type="email" placeholder="name@negroni.example" autocomplete="username">') + field('Password', '<input class="input" id="login-pass" type="password" placeholder="Any password works in the prototype" autocomplete="current-password">') + '<button class="btn primary" type="submit">Sign in</button><div id="login-err" class="small" style="color:var(--bad)"></div></form>' +
     '<div class="hr"></div><div><div class="strong">Or pick a demo account</div><div class="muted small">Try the same screens as different roles to see access control at work.</div></div>' +
     '<div class="acct-grid">' + demo.map(([id, lbl]) => { const u = user(id); return '<button class="acct" data-act="login-as" data-id="' + id + '">' + avatar(u) + '<span class="grow"><b>' + esc(u.name) + '</b><small>' + esc(lbl) + ' · ' + esc(company(u.companyId).short) + '</small></span></button>'; }).join('') + '</div></section></div>';
 };
 ACT['login-email'] = () => {
   const e = (document.getElementById('login-email').value || '').trim().toLowerCase();
   const u = state.users.find(x => x.email.toLowerCase() === e && x.active !== false);
-  if (!u) { document.getElementById('login-err').textContent = 'No active account with that email. Use a demo account below, e.g. daniel.reyes@northstar.example'; return; }
+  if (!u) { document.getElementById('login-err').textContent = 'No active account with that email. Use a demo account below, e.g. kim.sreyneang@negroni.example'; return; }
   login(u.id);
 };
 
 /* ---------- cloud mode: create account / sign in / forgot password (real Supabase accounts) ---------- */
 VIEWS.cloudScreen = function () {
-  const art = '<section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Northstar</b><small>Holding OS · prototype</small></div></div>' +
-    '<div class="stack" style="gap:18px"><h1>One operating system for every company in the group.</h1><p>Create your account and you get your own workspace, pre-filled with the Northstar sample group: tasks, approvals, finance, people and performance. Your changes are saved to the cloud, so they are still there tomorrow and on any device.</p></div>' +
+  const art = '<section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Negroni</b><small>Management OS · prototype</small></div></div>' +
+    '<div class="stack" style="gap:18px"><h1>One place to run the whole company.</h1><p>Create your account and you get your own workspace, pre-filled with sample data for Longevity project: tasks, approvals, finance, people and performance. Your changes are saved to the cloud, so they are still there tomorrow and on any device.</p></div>' +
     '<p class="small" style="opacity:.7">Sample data is fictional. Invite colleagues from Settings → System &amp; data.</p></section>';
   const S = Cloud.screen;
   const msg = Cloud.authMsg ? '<div id="auth-msg" class="auth-msg ' + (Cloud.authMsg.ok ? 'ok' : 'bad') + '" role="status">' + esc(Cloud.authMsg.text) + '</div>' : '<div id="auth-msg" class="auth-msg" role="status"></div>';
@@ -204,8 +204,8 @@ function revExpChart(ids, n) {
 /* ---------- dashboards ---------- */
 VIEWS.dashboard = function () {
   const r = me().role;
-  if (r === 'owner' || r === 'ceo') return dashExec();
-  if (r === 'cto') return dashCto();
+  if (r === 'ceo') return dashExec();
+  if (r === 'cto' || r === 'cmo') return dashCto();
   if (r === 'finance') return dashFinance();
   if (r === 'manager') return dashManager();
   return dashMember();
