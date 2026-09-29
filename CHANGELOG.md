@@ -2,6 +2,19 @@
 
 Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 
+## 2026-09-29 · Claude (Cowork) — accounts plan
+- Confirmed: **no real user accounts yet** (demo sign-in, any password; data only in the browser). Added "Accounts & data — honest status" to handoff §3.
+- New **§15 P0 — Real accounts + cloud-saved data** so Alex can sign up and prototype: Supabase dashboard steps, full SQL migration, file-by-file app changes, acceptance checklist, onboarding steps.
+- Added `supabase/migrations/0001_workspaces.sql` (profiles, workspaces as JSON, members with owner/editor/viewer, RLS, save-with-revision, invite by email, explicit grants). Tested on local Postgres 16 with a mock auth schema: 12 access checks pass.
+- New **§16 Portability** (inventory of every account, run on a new PC, rebuild from zero, hand over ownership, backups, secret rotation, hosting limits). Open decisions §13 #10–12 (sign-up policy, email confirmation/SMTP, seeded vs blank workspace). README links the live site.
+- **Next:** Claude Code implements §15 P0 (owner first does P0.1 in the Supabase dashboard).
+
+## 2026-09-29 · Claude (Cowork)
+- Created public GitHub repo **Sidiyatouch/management-app** (empty, then the owner pushed the existing `main` history). Added `vercel.json` (no install, `npm run build` → `prototype/dist`, security headers), `.env.example` (Supabase variable names only) and allowed it through `.gitignore`.
+- Deployed to Vercel: **https://management-app-ashy.vercel.app** — checked live: HTTP 200, HTTPS + HSTS, all headers present, demo sign-in (Daniel Reyes / CEO) loads the dashboard, no console errors. Production domain is public; previews stay behind Vercel login.
+- Created Supabase org **Sidiyatouch** (Free) and project **management-app** in Singapore with Data API on, auto-expose new tables **off**, automatic RLS **on**. Linked to the Vercel project through the Supabase integration ("Link existing account", access limited to `management-app`); 16 Production env vars synced, verified in Vercel. The app does not use Supabase yet.
+- **Next:** handoff §15 item 3; §15 item 7 (schema + RLS) is now unblocked by a real database.
+
 ## 2026-09-28 · Claude Code (style pass)
 - `npm run dev` / `tools/serve.mjs`: zero-dependency dev server on http://localhost:5173 that rebuilds on `prototype/src` changes and live-reloads. `.claude/launch.json` registers it as the "prototype" preview.
 - `styles.css` polish within the §8 design system (palette and chart series unchanged): new tokens (`--brand-grad`, `--nav-grad`, `--shadow-hover`, `--ring`, `--page-glow`, `--ease`), gradient sidebar with glowing active indicator, gradient hero KPI and primary buttons, hover lift on clickable cards/tiles, focus rings on inputs, animated tab underline, tinted table headers and row hover accent, blurred overlays, modal/toast pop-in, thin themed scrollbars, richer login panel. Light and dark checked.

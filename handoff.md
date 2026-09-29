@@ -7,9 +7,12 @@
 | Owner | Sreyneang (founder) |
 | Folder | `Documents\management app\` (Windows) — this folder |
 | Live prototype | https://claude.ai/artifact/AEtxwRQFUe4W3mq7woe4xE (private; the owner shares it) |
+| Public site | https://management-app-ashy.vercel.app (Vercel, auto-deploys every push to `main`) |
+| Repo | https://github.com/Sidiyatouch/management-app (public, no license = all rights reserved) |
+| Database | Supabase project `management-app` (org Sidiyatouch, Free, Singapore `ap-southeast-1`) — linked, not yet used by the app |
 | Prototype codename | "Northstar Holding OS" (fictional sample company, replace with real data later) |
-| Status | v0.1 functional prototype — single HTML file, browser-only storage, sample data |
-| Last updated | 2026-09-28 by Claude Code |
+| Status | v0.1 functional prototype — single HTML file, browser-only storage, sample data. **No real user accounts yet → top priority is §15 P0 (real sign-up + cloud storage).** |
+| Last updated | 2026-09-29 by Claude (Cowork) |
 
 ---
 
@@ -69,6 +72,28 @@ The owner chose to run Claude Code here with `--dangerously-skip-permissions` (`
 
 A working single-page prototype with realistic sample data. Every button, filter, form, workflow and role switch works. Data is stored in the viewer's browser (`localStorage`), so each person testing it sees their own copy.
 
+### Accounts & data — honest status (2026-09-29)
+
+| Question | Answer today |
+|---|---|
+| Can a real person create an account? | **No.** The sign-in screen is a demo: the email must match a sample person and *any* password works (`ACT['login-email']` in `views_dash.js`, `login()` in `ui.js`). "Add person" in People only adds a sample record, not a login. |
+| Where is data saved? | Only in the visitor's browser (`localStorage` key `northstar-hcms-state`, `loadState/saveState` in `core.js`). Clearing the browser, another device or another person = different, separate data. |
+| Is Supabase used? | No. The project exists and is linked to Vercel, but has no tables and the app never calls it. |
+| What's needed so Alex (owner's teacher) can sign up and prototype with saved data? | §15 **P0** below. |
+
+### Hosting & deployment (since 2026-09-29)
+
+| Piece | Where | Notes |
+|---|---|---|
+| Code | GitHub `Sidiyatouch/management-app` | Local folder pushes to `origin main`. The Vercel GitHub app has access to this repo only. |
+| Site | Vercel project `management-app` (Hobby, team "sidiyatouch's projects") | `vercel.json`: no install step, `npm run build`, serves `prototype/dist`. Headers: nosniff, `X-Frame-Options: DENY`, strict referrer, camera/mic/geo off; HSTS by Vercel. Deployment Protection = Standard (preview URLs need a Vercel login; the production domain is public). |
+| Database | Supabase `management-app` (`xxylukhjhhvpxzfmcdvc`, Singapore) | Data API on; **new tables are NOT exposed automatically**; **automatic RLS on** for new public tables. Linked to Vercel via the Supabase integration (Vercel project `management-app` only). It synced 16 Production env vars: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_*` (browser-safe with RLS) and **secrets** `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `POSTGRES_*` (server-only). |
+
+- **The prototype still stores data in each visitor's browser.** Supabase is linked but unused until the v1 backend work (§10, §15).
+- **Secret handling:** `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` and `POSTGRES_*` must never be written into the browser bundle — `tools/build.mjs` must only ever inline `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`, and only once every table has RLS policies. The DB password lives in the owner's password manager only.
+- **Public means public:** anyone with the URL sees the sample Northstar data. Before real company data goes in: real auth, server-side RBAC, RLS policies, and consider Vercel password protection or a private repo.
+- `.env.example` lists the variable names; real values live in Vercel/Supabase, never in git.
+
 ### Run it
 
 ```powershell
@@ -106,6 +131,9 @@ management app/
 │                            files above directly; the launcher copies them in if missing)
 ├─ start-claude.cmd/.ps1  ← launch Claude Code here with permission prompts skipped
 ├─ package.json           ← npm run build / npm test
+├─ vercel.json            ← Vercel build/output settings + security headers
+├─ .env.example           ← names of Supabase env vars (values never in git)
+├─ supabase/migrations/   ← database schema, applied in order (0001_workspaces.sql = §15 P0)
 ├─ docs/
 │  └─ mcp.providers.example.json  ← template for financial data-provider MCPs (needs credentials)
 ├─ tools/build.mjs        ← concatenates src → dist (cross-platform)
@@ -265,7 +293,7 @@ Visual direction came from the owner's references: deep indigo panels, soft lave
 
 ## 9. Known limitations (prototype)
 
-- Browser-only storage, no real users/auth (any password), no server-side enforcement.
+- Browser-only storage, no real users/auth (any password), no server-side enforcement. **Being fixed first: §15 P0.**
 - File attachments store name + size only.
 - Cash-basis accounting; no double-entry, chart of accounts, accruals, VAT/GST, intercompany eliminations, FX.
 - Balance sheet is simplified (retained earnings is a plug).
@@ -455,6 +483,9 @@ interface Connector {
 7. **Tax:** which companies need VAT/GST handling in v1.
 8. **Who uses the CLI first** (finance team? CEO?) — shapes the first commands to build.
 9. **Budget periods:** calendar year or a different fiscal year start.
+10. **Sign-up policy (needed for §15 P0):** open sign-up on the public site, or invite-only? Default in P0: open sign-up, every new account gets its own private workspace (RLS keeps them apart).
+11. **Email confirmation & sender (needed for §15 P0):** Supabase's built-in email only delivers to members of the Supabase org and about 2 emails/hour. Options: (a) turn "Confirm email" off during the prototype phase (default in P0), (b) custom SMTP (e.g. Resend/Postmark) from a domain the owner controls — required before real users/data.
+12. **New workspace content:** start with the Northstar sample data (default in P0, so Alex can explore immediately) or blank?
 
 ---
 
@@ -469,6 +500,8 @@ interface Connector {
 | 2026-09-28 | Project folder `Documents\management app` shared by Cowork and Claude Code; `handoff.md` is the source of truth | Owner |
 | 2026-09-28 | Plan a human-friendly `hq` CLI and `hq-mcp` server over one shared API | Owner (concept) |
 | 2026-09-28 | Claude Code runs in this folder with `--dangerously-skip-permissions` via `start-claude.cmd/.ps1`; project deny rules as guardrails | Owner |
+| 2026-09-29 | Real accounts + cloud-saved data is the #1 priority (§15 P0) so Alex can sign up and prototype; first version stores each workspace as one JSON document in Supabase, normalized tables come later (§15 item 7) | Owner |
+| 2026-09-29 | Public GitHub repo + Vercel hosting (production public) + Supabase in Singapore with auto-RLS and no auto-exposed tables; app keeps browser storage for now | Owner |
 | 2026-09-28 | Runway = cash ÷ average monthly posted expenses (incl. capex and loan repayments) over the last N full months; `prototype/dist/` is not committed (build output) | Claude Code (placeholder, owner to confirm) |
 
 ---
@@ -477,11 +510,254 @@ interface Connector {
 
 *Done 2026-09-28 (Claude Code): git repo initialized on `main`; project health formula and cash-low alert moved into Settings → Business rules with UI + tests.*
 
+*Done 2026-09-29 (Cowork): GitHub repo, Vercel deploy, Supabase project linked (see §3 Hosting & deployment).*
+
+### P0 — Real accounts + cloud-saved data (do this first)
+
+**Goal:** Alex (the owner's teacher) opens https://management-app-ashy.vercel.app, creates his own account, lands in his own workspace (pre-filled with the Northstar sample data), changes things, and finds them still there after refresh, on another device, or the next day. The owner can invite Alex into a shared workspace. The demo mode keeps working everywhere Supabase isn't configured (local `npm run dev`, the claude.ai Artifact, `npm test`).
+
+**Approach (fastest safe path):** Supabase Auth for accounts + one Postgres row per **workspace** holding the prototype's whole `state` as `jsonb`. This keeps every existing screen and engine unchanged (they already read/write one `state` object). Normalized tables per §4 come later (item 7) without changing the sign-up flow.
+
+#### P0.1 Supabase dashboard setup (owner does this, ~10 min; Claude can guide in the browser)
+
+1. **Auth → URL Configuration:** Site URL `https://management-app-ashy.vercel.app`; Redirect URLs add `https://management-app-ashy.vercel.app/**`, `https://*-sidiyatouch.vercel.app/**` (previews), `http://localhost:5173/**`.
+2. **Auth → Sign In / Providers → Email:** enabled; minimum password length 10. **"Confirm email": OFF for the prototype phase** (built-in mail only reaches Supabase org members, ~2/hour — see §13 #11). Turn it back ON after custom SMTP is set up.
+3. **Auth → Sign-ups:** allowed (default, §13 #10). To go invite-only later: disable sign-ups and use Auth → Users → *Invite user* (needs custom SMTP).
+4. Run **`supabase/migrations/0001_workspaces.sql`** (already in the repo; same SQL as below) in **SQL Editor**, or `supabase db push` once the Supabase CLI is linked. Keep every future schema change as a new numbered file there so the database can be rebuilt anywhere (§16).
+5. **Vercel → Settings → Environment Variables:** `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` already exist for **Production** (synced by the integration). Also tick **Preview** for those two if preview deployments should have accounts too. Redeploy after changes.
+
+#### P0.2 Database migration `supabase/migrations/0001_workspaces.sql`
+
+> Verified 2026-09-29 (Cowork) on Postgres 16 with a mock `auth` schema: sign-up creates a profile; owner sees only their workspace; a stranger sees nothing and cannot update; only owners can invite; unknown emails are rejected; editors save with revision checks (stale save → `conflict`); viewers get `read-only`; editors can't add members; `anon` is denied; the owner row can't be removed or demoted. Re-run these checks against the real project after applying.
+>
+> Our project has **"Automatically expose new tables" OFF**, so every table needs explicit `GRANT`s to `authenticated`, or the app gets permission errors even with correct RLS. Automatic RLS is ON, but we still enable it explicitly so the file works on any project.
+
+```sql
+-- Profiles: one per auth user
+create table public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  display_name text,
+  created_at timestamptz not null default now()
+);
+
+-- A workspace = one copy of the whole prototype state
+create table public.workspaces (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) between 1 and 80),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  state jsonb not null,
+  schema_version int not null,          -- = VERSION in core.js
+  revision bigint not null default 1,   -- optimistic concurrency
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.workspace_members (
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null check (role in ('owner','editor','viewer')),
+  added_at timestamptz not null default now(),
+  primary key (workspace_id, user_id)
+);
+create index on public.workspace_members (user_id);
+
+alter table public.profiles enable row level security;
+alter table public.workspaces enable row level security;
+alter table public.workspace_members enable row level security;
+
+-- Membership check (security definer avoids RLS recursion)
+create or replace function public.has_ws_role(ws uuid, min_role text default 'viewer')
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1 from public.workspace_members m
+    where m.workspace_id = ws and m.user_id = (select auth.uid())
+      and case min_role
+            when 'viewer' then true
+            when 'editor' then m.role in ('editor','owner')
+            when 'owner'  then m.role = 'owner'
+          end);
+$$;
+
+-- Policies
+create policy "own profile read"   on public.profiles for select to authenticated using (id = (select auth.uid()));
+create policy "own profile update" on public.profiles for update to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()));
+
+create policy "members read ws"    on public.workspaces for select to authenticated using (public.has_ws_role(id));
+create policy "create own ws"      on public.workspaces for insert to authenticated with check (owner_id = (select auth.uid()));
+create policy "editors update ws"  on public.workspaces for update to authenticated using (public.has_ws_role(id,'editor')) with check (public.has_ws_role(id,'editor'));
+create policy "owner deletes ws"   on public.workspaces for delete to authenticated using (owner_id = (select auth.uid()));
+
+create policy "members read members" on public.workspace_members for select to authenticated using (public.has_ws_role(workspace_id));
+-- Owners add/change/remove editors & viewers; the owner row itself is only created by the trigger below
+create policy "owner adds members"    on public.workspace_members for insert to authenticated
+  with check (public.has_ws_role(workspace_id,'owner') and role in ('editor','viewer'));
+create policy "owner changes members" on public.workspace_members for update to authenticated
+  using (public.has_ws_role(workspace_id,'owner') and role <> 'owner')
+  with check (public.has_ws_role(workspace_id,'owner') and role in ('editor','viewer'));
+create policy "owner removes members" on public.workspace_members for delete to authenticated
+  using (public.has_ws_role(workspace_id,'owner') and role <> 'owner');
+
+-- New auth user -> profile
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.profiles (id, display_name)
+  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email,'@',1)));
+  return new;
+end $$;
+create trigger on_auth_user_created after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- New workspace -> creator becomes owner member
+create or replace function public.handle_new_workspace() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into public.workspace_members (workspace_id, user_id, role) values (new.id, new.owner_id, 'owner');
+  return new;
+end $$;
+create trigger on_workspace_created after insert on public.workspaces
+  for each row execute function public.handle_new_workspace();
+
+-- Save with conflict detection (runs as the caller, so RLS applies)
+create or replace function public.save_workspace(ws uuid, new_state jsonb, expected_revision bigint, new_schema_version int)
+returns bigint language plpgsql security invoker set search_path = '' as $$
+declare r bigint;
+begin
+  if not public.has_ws_role(ws,'editor') then raise exception 'read-only' using errcode = '42501'; end if;
+  update public.workspaces
+     set state = new_state, schema_version = new_schema_version,
+         revision = revision + 1, updated_at = now()
+   where id = ws and revision = expected_revision
+  returning revision into r;
+  if r is null then raise exception 'conflict' using errcode = 'P0001'; end if;
+  return r;
+end $$;
+
+-- Owner invites an existing account by email
+create or replace function public.invite_member(ws uuid, member_email text, member_role text default 'editor')
+returns void language plpgsql security definer set search_path = '' as $$
+declare target uuid;
+begin
+  if not public.has_ws_role(ws,'owner') then raise exception 'only the workspace owner can invite'; end if;
+  if member_role not in ('editor','viewer') then raise exception 'role must be editor or viewer'; end if;
+  select id into target from auth.users where lower(email) = lower(member_email);
+  if target is null then raise exception 'no account with that email yet - ask them to sign up first'; end if;
+  insert into public.workspace_members (workspace_id, user_id, role) values (ws, target, member_role)
+  on conflict (workspace_id, user_id) do update set role = excluded.role
+    where public.workspace_members.role <> 'owner';  -- never demote the owner
+end $$;
+
+-- Grants (required: auto-expose is OFF)
+grant usage on schema public to authenticated;
+grant select, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.workspaces, public.workspace_members to authenticated;
+revoke all on public.profiles, public.workspaces, public.workspace_members from anon;
+revoke execute on function public.save_workspace(uuid,jsonb,bigint,int), public.invite_member(uuid,text,text), public.has_ws_role(uuid,text) from public, anon;
+grant execute on function public.save_workspace(uuid,jsonb,bigint,int), public.invite_member(uuid,text,text), public.has_ws_role(uuid,text) to authenticated;
+```
+
+#### P0.3 App changes (Claude Code)
+
+| File | Change |
+|---|---|
+| `tools/build.mjs` | Read `process.env.SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (fallback `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`). If both present, emit `<script>window.HQ_CONFIG={supabaseUrl,supabaseKey}</script>` and a pinned `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.x.y/dist/umd/supabase.min.js">` (pin exact version) into **`index.html` only**. `northstar.html` (Artifact) stays demo-only. **Fail the build** if the key starts with `sb_secret_`, or decodes as a JWT with `"role":"service_role"`, or if any other env var name containing `SECRET`, `SERVICE_ROLE`, `JWT` or `POSTGRES` would be inlined. |
+| `prototype/src/core.js` | Replace `loadState/saveState/resetState` with a **storage adapter**: `Store.local` (today's behaviour) and `Store.cloud` (Supabase). Pick cloud when `window.HQ_CONFIG` exists. `state.session` is **per person** and must be stripped before cloud saves (keep it in `localStorage` under `northstar-session:<workspaceId>`). |
+| `prototype/src/cloud.js` *(new, loaded after `core.js`)* | Supabase client; `signUp / signIn / signOut / resetPassword`; `listWorkspaces()`; `createWorkspace(name, state)`; `openWorkspace(id)`; debounced `save` (≈1.5 s) via `rpc('save_workspace')` with `revision`; flush on `visibilitychange`/`beforeunload`; on `conflict` → toast "Changed in another tab/device — reload to get the latest" and stop autosave until reload; on `read-only` → hide editing controls and show "View only"; offline/failed save → visible "Not saved" badge + retry. |
+| `views_dash.js` | When cloud is on, the login view becomes **Create account / Sign in / Forgot password** (email + password, display name on sign-up). The demo persona buttons move to an in-app "Act as…" picker (below). |
+| `views_misc.js` (boot) | Boot becomes async: cloud → get session → none = auth screen; else list workspaces → none = create "My workspace" seeded with `seedState()` (§13 #12) → open most recent → render. |
+| `ui.js` (avatar menu) | Show the real signed-in email, **Sign out**, current workspace + switcher. Keep **"Act as"** (today's Switch user) so one real person can test every role inside their workspace; label it "Prototype: acting as Daniel Reyes (CEO)". |
+| Settings → System | **Workspace** card: rename; members list; *Invite by email* (owner, calls `invite_member`); *Reset to sample data*; *Export JSON* (feeds §15 item 3). Show "Saved · 2 s ago" status. |
+| `data.js` / `core.js` | Add optional `users[].authUserId` (not used for access yet) and bump `VERSION` only if the saved shape changes; when a workspace's `schema_version` ≠ `VERSION`, show "This workspace was saved by an older version — Reset to sample data / Keep (read-only)". |
+
+**Security rules for P0:** only the publishable key reaches the browser; all access control is RLS; never call Supabase with the secret/service-role key from the web app; never log tokens; sign-out clears in-memory state and the session cache.
+
+#### P0.4 Acceptance checklist (all must pass)
+
+- [ ] `npm run build` without Supabase env → demo mode exactly as today; `npm test` green.
+- [ ] On the live site: sign up with a new email → lands in "My workspace" with sample data within 5 s.
+- [ ] Make a change (e.g. create a task), refresh → still there. Open in another browser/device, sign in → still there.
+- [ ] Second account cannot see the first account's workspace (check in UI **and** with a direct `from('workspaces').select()` call from that account).
+- [ ] Owner invites the second account as editor → it appears in their workspace switcher; they can edit; viewer role cannot save.
+- [ ] Two tabs editing the same workspace → the later save gets the conflict message, no silent overwrite.
+- [ ] Wrong password, existing email on sign-up, and weak password show clear messages.
+- [ ] Sign out → back to sign-in; no workspace data left in `localStorage`.
+- [ ] Built `index.html` contains no `sb_secret_`, `service_role`, `POSTGRES`, or JWT secret (add this grep to `npm test`).
+- [ ] Supabase **Advisors → Security** shows no errors.
+
+#### P0.5 Onboarding Alex (after P0 ships)
+
+1. Send Alex the link https://management-app-ashy.vercel.app → **Create account** (his email, a password, his name). No confirmation email while "Confirm email" is off.
+2. He gets his own workspace with sample data and can use **Act as…** to try each role.
+3. To work in the owner's workspace instead: owner opens Settings → System → Workspace → **Invite by email** → Alex's email, role *editor*.
+4. If sign-in fails: Supabase → Auth → Users (check the account exists); Auth → Logs.
+5. Free-plan reminder: the Supabase project **pauses after ~7 days of low activity** (email warning first); Resume in the dashboard, data is kept.
+
+### After P0
+
 3. **Data export/import for the prototype:** "Export data (JSON)" copy-to-clipboard and "Import data" paste box in Settings → System, so testers can share a scenario.
 4. **Split `core.js` engines into ES modules** with unit tests (Node test runner) for: rule matching, approver resolution + escalation, self-approval block, task reviewer fallback, recurring spawn, reversal/adjustment, P&L/BS/CF math. Keep `tools/build.mjs` producing the single file.
 5. **Statement import prototype:** Finance → Bank & cash → "Import statement (CSV)" → preview → match to ledger → create drafts for unmatched lines. This seeds the future connector + `hq reconcile`.
 6. **CLI spike:** `apps/cli` with `hq brief`, `hq cash`, `hq pnl` running against the prototype's seed data (import engines from step 4) to validate the output style in §12.
-7. **Schema draft:** SQL (Postgres) for §4 entities + RLS policies for scope; migration tool choice.
+7. **Schema draft:** SQL (Postgres) for §4 entities + RLS policies for scope, as further files in `supabase/migrations/`; migrate each workspace's JSON into the tables; move RBAC/scope checks server-side (§5). Builds on P0's auth + workspaces.
 8. Accessibility pass (focus order in drawers/modals, labels), and performance check with 10× data.
 
 **Acceptance for every task:** `npm run build` succeeds, `npm test` green, CHANGELOG updated, §3/§15 here updated if affected.
+
+---
+
+## 16. Portability — move, rebuild or hand over the app
+
+Everything needed to run this app lives in **four places**. Nothing important lives only on one laptop.
+
+### 16.1 Inventory
+
+| What | Where | Owner / login | Holds secrets? |
+|---|---|---|---|
+| Source code, docs, history | GitHub `Sidiyatouch/management-app` (public) + local folder `Documents\management app` | GitHub account *Sidiyatouch* | No — secrets are never committed (`.gitignore`: `.env*` except `.env.example`, `secrets/`) |
+| Hosting | Vercel project `management-app`, team "sidiyatouch's projects" (Hobby), domain `management-app-ashy.vercel.app` | Vercel login via GitHub (*sidiyatouch333@gmail.com*) | Env vars (synced from Supabase) |
+| Database + accounts | Supabase org *Sidiyatouch* (Free) → project `management-app`, ref `xxylukhjhhvpxzfmcdvc`, Singapore | Supabase login via GitHub | DB password (owner's password manager only), API keys |
+| Design prototype | claude.ai Artifact https://claude.ai/artifact/AEtxwRQFUe4W3mq7woe4xE | Owner's Claude account | No |
+| Glue | Vercel GitHub app (access: this repo only); Supabase ↔ Vercel integration (access: `management-app` only) | Installed by owner | — |
+
+### 16.2 Run it on a new computer
+
+```powershell
+git clone https://github.com/Sidiyatouch/management-app.git "$HOME\Documents\management app"
+cd "$HOME\Documents\management app"
+npm i                      # dev deps only (Playwright for tests)
+npx playwright install chromium
+npm run build ; npm test   # demo mode, no secrets needed
+npm run dev                # http://localhost:5173 with live reload
+```
+For cloud mode locally: copy `.env.example` → `.env`, fill **only** `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` (Supabase → Project Settings → API Keys), then build. Never put the secret key in `.env` for the web app.
+
+### 16.3 Rebuild everything from zero (new accounts / new region)
+
+1. **GitHub:** create an empty repo, `git remote set-url origin <new url>`, `git push -u origin main`.
+2. **Supabase:** new project (choose region; turn *Automatically expose new tables* OFF and *automatic RLS* ON as today) → apply `supabase/migrations/*.sql` in order (SQL Editor or `supabase link` + `supabase db push`) → redo Auth settings in §15 P0.1.
+3. **Vercel:** Add New → Project → import the repo (preset "Other"; `vercel.json` supplies build settings) → install the Supabase integration with **Link existing account**, limited to this project → Redeploy.
+4. Update the URLs in this file (header table, §3, §15 P0.1 redirect URLs) and the Supabase Site URL.
+5. Move data if needed: see 16.5.
+
+### 16.4 Hand over to another owner (keep the same services)
+
+- **GitHub:** Settings → Transfer ownership (or add collaborators). Vercel's Git link follows the repo; re-authorize the Vercel GitHub app for the new owner if asked.
+- **Vercel:** Project → Settings → Transfer to another team (Hobby → their team), or add them to the team.
+- **Supabase:** Org → Team → invite them as Owner, or Project settings → Transfer project to their organization. Then **rotate keys and the DB password** (Project Settings → Database / API Keys) and let the integration re-sync Vercel env vars.
+- Update §14 decision log and the header table.
+
+### 16.5 Backups & data export
+
+- The Free plan has no downloadable backups in the dashboard. Take your own: `supabase db dump --data-only -f backup.sql` (Supabase CLI) or `pg_dump` with the connection string from **Connect** → *Direct*. Store dumps outside the repo.
+- Per-workspace JSON export from the app (Settings → System → Export JSON, §15 item 3) is the easy way for a single tester to save or share a scenario.
+- Restore: create the schema from `supabase/migrations/`, then load the dump.
+
+### 16.6 If a secret leaks
+
+Rotate immediately in Supabase (API Keys → roll the secret key; Database → reset password), let the Vercel integration re-sync, redeploy, and check Supabase **Auth → Logs** and **Advisors**. The publishable key is designed to be public; RLS is what protects data.
+
+### 16.7 Known limits of the current hosting
+
+- Supabase Free: project pauses after ~7 days of low activity (resume from dashboard, data kept); built-in auth email is for testing only (§13 #11).
+- Vercel Hobby: for personal, non-commercial use — move to Pro before commercial use.
+- Only the production domain is public; preview URLs require a Vercel login (Deployment Protection: Standard).
