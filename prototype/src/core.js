@@ -1,11 +1,11 @@
 /* =====================================================================
-   Northstar HCMS — core: helpers, store, permissions, audit, engines
+   Negroni — core: helpers, store, permissions, audit, engines
    Architecture note: everything reads/writes one normalized `state`
    object (collections keyed like DB tables). Swapping localStorage for
    an API later only touches load/save + the engine functions below.
    ===================================================================== */
 'use strict';
-const VERSION = 5;
+const VERSION = 6;
 const STORE_KEY = 'northstar-hcms-state';
 
 /* ---------- date + format helpers ---------- */

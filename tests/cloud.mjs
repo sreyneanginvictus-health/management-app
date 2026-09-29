@@ -188,13 +188,13 @@ await A.fill('#auth-pass', 'correct-horse-1');
 await A.click('#auth-form button[type=submit]');
 ok(await waitFor(A, 'state && Cloud.ws && document.querySelector(".topbar")', 5000), 'sign up lands in a workspace within 5 s');
 console.log(`Sign-up → dashboard: ${Date.now() - t0} ms`);
-ok(await A.evaluate("Cloud.ws.name === 'My workspace' && Cloud.ws.role === 'owner' && state.tasks.length > 10"), 'new workspace seeded with sample data');
+ok(await A.evaluate("Cloud.ws.name === 'My workspace' && Cloud.ws.role === 'owner' && state.tasks.length === 1 && state.companies[0].name === 'Longevity project'"), 'new workspace seeded with sample data');
 ok(await A.evaluate("me().role === 'ceo'"), 'acts as the CEO persona by default');
 ok(!('session' in wsOf('alice@example.com').state), 'session is not stored in the cloud');
 await A.screenshot({ path: join(tmp, 'dashboard.png') });
 
 // Change → autosave → reload keeps it
-await A.evaluate("state.settings.budgetAlertPct = 77; createTask({ title: 'Cloud test task', assigneeId: 'u_piseth', companyId: 'c_digital', departmentId: 'd_d_eng', due: TODAY_S, priority: 'medium' }); render()");
+await A.evaluate("state.settings.budgetAlertPct = 77; createTask({ title: 'Cloud test task', assigneeId: 'u_piseth', companyId: 'c_lp', departmentId: 'd_tech', due: TODAY_S, priority: 'medium' }); render()");
 ok(await saved(A), 'change autosaves');
 ok(wsOf('alice@example.com').state.settings.budgetAlertPct === 77 && wsOf('alice@example.com').revision === 2, 'server has the change (revision 2)');
 const rpcBefore = DB.rpcCalls;

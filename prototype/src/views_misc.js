@@ -244,7 +244,7 @@ Object.assign(ACT, {
   'ws-export': () => {
     const blob = new Blob([JSON.stringify(sharedState(state), null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = (Cloud.ws ? Cloud.ws.name : 'northstar').replace(/[^\w-]+/g, '-').toLowerCase() + '-' + TODAY_S + '.json';
+    a.download = (Cloud.ws ? Cloud.ws.name : 'negroni').replace(/[^\w-]+/g, '-').toLowerCase() + '-' + TODAY_S + '.json';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
 });

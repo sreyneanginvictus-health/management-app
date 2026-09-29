@@ -10,7 +10,7 @@
 | Public site | https://management-app-ashy.vercel.app (Vercel, auto-deploys every push to `main`) |
 | Repo | https://github.com/sreyneanginvictus-health/management-app (public; moved from `Sidiyatouch` on 2026-09-29, old URL redirects, no license = all rights reserved) |
 | Database | Supabase project `management-app` (org Sidiyatouch, Free, Singapore `ap-southeast-1`) — linked, not yet used by the app |
-| Prototype codename | "Northstar Holding OS" (fictional sample company, replace with real data later) |
+| App name | **Negroni** (renamed from "Northstar Holding OS" on 2026-09-29). Sample data: one company, **Longevity project** |
 | Status | v0.1 functional prototype — single HTML file, sample data. **Real accounts + cloud-saved workspaces are built (branch `feat/p0-accounts`, §15 P0.3) but not live yet: the owner does §15 P0.1 first, then merge to `main`.** |
 | Last updated | 2026-09-29 by Claude Code |
 
@@ -514,6 +514,7 @@ interface Connector {
 | 2026-09-29 | P0 built on a branch; vendored supabase-js 2.117.2 served from our own domain (not a CDN); cloud mode switches on automatically when the build sees the Supabase URL + publishable key; default "Act as" persona = sample Owner | Claude Code |
 | 2026-09-29 | Roles reduced to CEO, CTO, CMO, Finance / Accounting, Manager, Team Member (Owner / Board removed); CMO = same permissions as CTO; people: CEO Kim Sreyneang, CTO Snakeman, 1 CMO, 2 managers, 2 finance, 4 team members | Owner |
 | 2026-09-29 | With no Owner role: large project/contract rules become Finance → CEO, escalation role = Finance (placeholders) | Claude Code (owner to confirm) |
+| 2026-09-29 | App renamed **Negroni**; sample data reduced to one company (**Longevity project**) with one task, one project and one approval; finance, budgets, KPIs and documents regenerated for that company | Owner |
 | 2026-09-28 | Runway = cash ÷ average monthly posted expenses (incl. capex and loan repayments) over the last N full months; `prototype/dist/` is not committed (build output) | Claude Code (placeholder, owner to confirm) |
 
 ---

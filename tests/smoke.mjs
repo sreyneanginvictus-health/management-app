@@ -46,9 +46,15 @@ const refs = await E(`(() => { const bad = []; const walk = (o, p) => { if (type
 ok(refs.length === 0, 'no references to removed people: ' + refs.join(', '));
 ok(!(await E("state.approvals.some(a => a.steps.some(s => s.actorId === a.requesterId))")), 'nobody approved their own request in the sample data');
 
+// 1c) One company, one task, one project, one approval (owner request 2026-09-29).
+ok((await E('state.companies.map(c => c.name).join()')) === 'Longevity project', 'only company is Longevity project');
+ok((await E('[state.tasks.length, state.projects.length, state.approvals.length].join()')) === '1,1,1', 'one task, one project, one approval');
+ok((await pg.title()) === 'Negroni', 'page title is Negroni');
+ok((await pg.innerText('.sidebar .brand')).includes('Negroni'), 'app name in sidebar');
+
 // 2) Expense > threshold routes Manager → Finance → CEO and creates a draft ledger entry on final approval.
 await E("login('u_ethan')");
-const a = await E("createApproval({type:'expense', title:'Test offsite', amount:2400, companyId:'c_digital', departmentId:'d_d_eng'}).id");
+const a = await E("createApproval({type:'expense', title:'Test offsite', amount:2400, companyId:'c_lp', departmentId:'d_tech'}).id");
 ok((await E(`get('approvals','${a}').steps.map(s=>s.role).join('>')`)) === 'manager>finance>ceo', 'expense route');
 for (const u of ['u_snakeman', 'u_sokha', 'u_kim']) { await E(`login('${u}')`); await E(`decideApproval(get('approvals','${a}'),'approve','ok')`); }
 ok((await E(`get('approvals','${a}').status`)) === 'approved', 'expense approved');
@@ -56,18 +62,18 @@ ok((await E(`get('transactions', get('approvals','${a}').linkedTxId).status`)) =
 
 // 3) No self-approval: the CEO's own step escalates to the Owner.
 await E("login('u_kim')");
-const route = await E("createApproval({type:'expense', title:'CEO trip', amount:5000, companyId:'c_hq', departmentId:'d_hq_exec'}).steps.map(s => s.approverIds.join('/'))");
+const route = await E("createApproval({type:'expense', title:'CEO trip', amount:5000, companyId:'c_lp', departmentId:'d_exec'}).steps.map(s => s.approverIds.join('/'))");
 ok(!route.some(ids => ids.includes('u_kim')), 'requester never an approver');
 
 // 4) Threshold is configuration, not code.
 await E("ruleById('r_exp_hi').cond.value = 5000");
-ok((await E("routePreview({type:'expense', amount:2400, companyId:'c_digital', departmentId:'d_d_eng', requesterId:'u_ethan'}).steps.length")) === 2, 'threshold change');
+ok((await E("routePreview({type:'expense', amount:2400, companyId:'c_lp', departmentId:'d_tech', requesterId:'u_ethan'}).steps.length")) === 2, 'threshold change');
 
 // 5) Task review loop.
-await E("login('u_piseth')");
-const t = await E("state.tasks.find(t => t.title.startsWith('Security audit')).id");
+await E("login('u_mony')");
+const t = await E("state.tasks.find(t => t.title.startsWith('Prepare the pilot')).id");
 await E(`submitTask(get('tasks','${t}'), 'done')`);
-await E("login('u_ethan')");
+await E("login('u_vannak')");
 ok(await E(`canReviewTask(get('tasks','${t}'))`), 'reviewer can review');
 await E(`reviewTask(get('tasks','${t}'), 'approve', '')`);
 ok((await E(`get('tasks','${t}').status`)) === 'completed', 'task completed');

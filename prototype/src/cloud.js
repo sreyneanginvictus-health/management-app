@@ -129,7 +129,7 @@ async function cloudEnter(user) {
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { }
   if (!(await cloudListWorkspaces())) return;
   if (!Cloud.workspaces.length) {
-    // §13 #12: new accounts start with the Northstar sample data
+    // §13 #12: new accounts start with the sample data
     if (!(await cloudCreateWorkspace('My workspace'))) return;
     if (!(await cloudListWorkspaces())) return;
   }
