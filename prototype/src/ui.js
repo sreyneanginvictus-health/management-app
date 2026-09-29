@@ -239,19 +239,21 @@ function topbarHtml() {
   const scopeCtl = ids.length > 1 ? selectEl('scope-select', [['all', 'All companies (' + ids.length + ')']].concat(ids.map(id => [id, company(id).name])), state.session.companyFilter || 'all', 'class="scope-select" data-act-change="scope" aria-label="Company scope"') : '<span class="tag" style="padding:6px 10px">' + esc(company(u.companyId).name) + '</span>';
   return '<button class="icon-btn menu-btn" data-act="toggle-nav" aria-label="Menu">' + icon('menu') + '</button>' +
     '<div class="search">' + icon('search') + '<input id="gsearch" type="search" placeholder="Search tasks, projects, requests, people…" autocomplete="off" aria-label="Global search"><div id="search-results" class="search-results" hidden></div></div>' +
-    '<div class="top-actions">' + scopeCtl +
+    '<div class="top-actions">' + (Cloud.ws ? '<span data-save-status>' + cloudStatusHtml() + '</span>' : '') + scopeCtl +
     '<button class="icon-btn" data-act="nav" data-page="notifications" aria-label="Notifications">' + icon('bell') + (unreadCount() ? '<span class="dot">' + unreadCount() + '</span>' : '') + '</button>' +
     '<button class="user-chip" data-act="user-menu" aria-label="Account menu">' + avatar(u) + '<span class="who"><b>' + esc(u.name) + '</b><small>' + esc(roleLabel(u.role)) + ' · ' + esc(company(u.companyId).short) + '</small></span></button></div>';
 }
 const VIEWS = {};
 function render() {
   const root = document.getElementById('app');
+  if (!state) { root.innerHTML = VIEWS.cloudScreen(); return; }
   if (!state.session.userId) { root.innerHTML = VIEWS.login(); return; }
   const ae = document.activeElement; const fid = ae && ae.id; const sel = ae && ae.selectionStart;
   if (!pageAllowed(App.route.page)) App.route = { page: 'dashboard' };
   let content;
   try { content = (VIEWS[App.route.page] || VIEWS.dashboard)(); }
   catch (e) { console.error(e); content = card('Something went wrong', '<p>' + esc(e.message) + '</p>'); }
+  if (Cloud.ws && Cloud.ws.readOnly) content = noticeEl('<b>View only.</b> You can look around and try things, but nothing you change here is saved to “' + esc(Cloud.ws.name) + '”.', 'warn', 'lock') + '<div style="height:12px"></div>' + content;
   root.innerHTML = '<div class="app ' + (App.ui.navOpen ? 'nav-open' : '') + '"><nav class="sidebar" aria-label="Main">' + sidebarHtml() + '</nav><div class="scrim" data-act="toggle-nav"></div><div class="main"><header class="topbar">' + topbarHtml() + '</header><main class="content" id="content">' + content + '</main></div></div>';
   if (fid && fid !== 'gsearch') { const el = document.getElementById(fid); if (el) { el.focus(); try { if (sel != null) el.setSelectionRange(sel, sel); } catch (e) { } } }
   saveState();
@@ -369,13 +371,14 @@ Object.assign(ACT, {
     const u = me(); let t = ''; try { t = localStorage.getItem('northstar-theme') || ''; } catch (e) { }
     const byRole = ROLE_KEYS.map(r => [r, state.users.filter(x => x.role === r && x.active !== false)]);
     openModal(modalShell('Account', '<div class="row" style="gap:12px;margin-bottom:16px">' + avatar(u, 'lg') + '<div><div class="strong" style="font-size:16px">' + esc(u.name) + '</div><div class="muted">' + esc(u.title) + ' · ' + esc(company(u.companyId).name) + '</div><div class="row" style="margin-top:6px">' + badge(roleLabel(u.role), 'b-brand') + badge(SCOPES[u.scope], '') + '</div></div></div>' +
-      field('Switch user (demo login)', '<select class="select" id="switch-user">' + byRole.map(([r, us]) => '<optgroup label="' + esc(roleLabel(r)) + '">' + us.map(x => '<option value="' + x.id + '"' + (x.id === u.id ? ' selected' : '') + '>' + esc(x.name) + ' — ' + esc(x.title) + '</option>').join('') + '</optgroup>').join('') + '</select>', { hint: 'Each person has their own role, company, department, manager and permissions. Switch to test what they can see.' }) +
+      (Cloud.ws ? cloudAccountHtml() + '<div class="hr"></div>' : '') +
+      field(Cloud.ws ? 'Prototype: acting as ' + esc(u.name) + ' (' + esc(roleLabel(u.role)) + ')' : 'Switch user (demo login)', '<select class="select" id="switch-user">' + byRole.map(([r, us]) => '<optgroup label="' + esc(roleLabel(r)) + '">' + us.map(x => '<option value="' + x.id + '"' + (x.id === u.id ? ' selected' : '') + '>' + esc(x.name) + ' — ' + esc(x.title) + '</option>').join('') + '</optgroup>').join('') + '</select>', { hint: Cloud.ws ? 'Act as any sample person to test what their role can see. This does not change your real account.' : 'Each person has their own role, company, department, manager and permissions. Switch to test what they can see.' }) +
       '<div class="hr"></div>' + field('Theme', segEl([['', 'System'], ['light', 'Light'], ['dark', 'Dark']], t, 'theme')),
-      '<button class="btn" data-act="logout">' + icon('logout') + 'Sign out</button><span class="spacer"></span><button class="btn primary" data-act="switch-user">' + icon('swap') + 'Switch</button>'));
+      '<button class="btn" data-act="logout">' + icon('logout') + 'Sign out</button><span class="spacer"></span><button class="btn primary" data-act="switch-user">' + icon('swap') + (Cloud.ws ? 'Act as' : 'Switch') + '</button>'));
   },
   theme: el => { applyTheme(el.dataset.v); el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); },
   'switch-user': () => { const id = document.getElementById('switch-user').value; closeModal(); login(id); },
-  logout: () => { audit('logout', 'session', me().id, 'Signed out'); state.session.userId = null; closeModal(); closeDrawer(); saveState(); render(); },
+  logout: () => { if (Cloud.enabled) { closeModal(); cloudSignOut(); return; } audit('logout', 'session', me().id, 'Signed out'); state.session.userId = null; closeModal(); closeDrawer(); saveState(); render(); },
   'login-as': el => login(el.dataset.id),
   'mark-read': el => { const n = state.notifications.find(x => x.id === el.dataset.id); if (n) { n.read = true; } followLink(n && n.link); },
 });

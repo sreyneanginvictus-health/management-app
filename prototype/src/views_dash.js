@@ -21,6 +21,93 @@ ACT['login-email'] = () => {
   login(u.id);
 };
 
+/* ---------- cloud mode: create account / sign in / forgot password (real Supabase accounts) ---------- */
+VIEWS.cloudScreen = function () {
+  const art = '<section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Northstar</b><small>Holding OS · prototype</small></div></div>' +
+    '<div class="stack" style="gap:18px"><h1>One operating system for every company in the group.</h1><p>Create your account and you get your own workspace, pre-filled with the Northstar sample group: tasks, approvals, finance, people and performance. Your changes are saved to the cloud, so they are still there tomorrow and on any device.</p></div>' +
+    '<p class="small" style="opacity:.7">Sample data is fictional. Invite colleagues from Settings → System &amp; data.</p></section>';
+  const S = Cloud.screen;
+  const msg = Cloud.authMsg ? '<div id="auth-msg" class="auth-msg ' + (Cloud.authMsg.ok ? 'ok' : 'bad') + '" role="status">' + esc(Cloud.authMsg.text) + '</div>' : '<div id="auth-msg" class="auth-msg" role="status"></div>';
+  const input = (id, label, type, ac, extra) => field(label, '<input class="input" id="' + id + '" type="' + type + '" autocomplete="' + ac + '"' + (extra || '') + '>', { for: id });
+  let form;
+  if (S === 'loading') form = '<div class="stack" style="gap:8px"><div class="eyebrow">One moment</div><h2 style="font-size:22px">Loading your workspace…</h2></div>';
+  else if (S === 'error') form = '<div class="stack" style="gap:12px"><div class="eyebrow">Problem</div><h2 style="font-size:22px">We could not open the app</h2>' + noticeEl(esc(Cloud.error), 'bad', 'alert') +
+    '<div class="row" style="gap:8px"><button class="btn primary" data-act="cloud-boot">Try again</button>' + (Cloud.user ? '<button class="btn" data-act="logout">' + icon('logout') + 'Sign out</button>' : '') + '</div></div>';
+  else if (S === 'old-version') form = '<div class="stack" style="gap:12px"><div class="eyebrow">Workspace “' + esc(Cloud.ws ? Cloud.ws.name : '') + '”</div><h2 style="font-size:22px">Saved by an older version of the app</h2><p class="muted" style="margin:0">The app has changed how it stores data since this workspace was last saved.</p>' +
+    '<div class="row" style="gap:8px;flex-wrap:wrap">' + (Cloud.ws && Cloud.ws.role !== 'viewer' ? '<button class="btn primary" data-act="cloud-old" data-v="reset">' + icon('undo') + 'Reset to sample data</button>' : '') + '<button class="btn" data-act="cloud-old" data-v="keep">Keep (read-only)</button><button class="btn" data-act="logout">' + icon('logout') + 'Sign out</button></div></div>';
+  else if (S === 'recovery') form = '<div><div class="eyebrow">Reset password</div><h2 style="font-size:24px;margin-top:4px">Choose a new password</h2></div>' +
+    '<form id="auth-form" class="stack" style="gap:12px" onsubmit="event.preventDefault();ACT[\'auth-newpass\']()">' + input('auth-pass', 'New password', 'password', 'new-password', '') + input('auth-pass2', 'Repeat new password', 'password', 'new-password') +
+    '<button class="btn primary" type="submit">Save password and continue</button>' + msg + '</form>';
+  else {
+    const tab = Cloud.authTab;
+    const head = { signin: ['Sign in', 'Welcome back'], signup: ['Create account', 'Get your own workspace'], forgot: ['Forgot password', 'Reset your password'] }[tab];
+    let f;
+    if (tab === 'signup') f = '<form id="auth-form" class="stack" style="gap:12px" onsubmit="event.preventDefault();ACT[\'auth-signup\']()">' + input('auth-name', 'Your name', 'text', 'name', ' maxlength="80"') + input('auth-email', 'Email', 'email', 'username') +
+      field('Password', '<input class="input" id="auth-pass" type="password" autocomplete="new-password">', { for: 'auth-pass', hint: 'At least 10 characters.' }) + '<button class="btn primary" type="submit">Create account</button>' + msg + '</form>';
+    else if (tab === 'forgot') f = '<form id="auth-form" class="stack" style="gap:12px" onsubmit="event.preventDefault();ACT[\'auth-forgot\']()">' + input('auth-email', 'Email', 'email', 'username') +
+      '<button class="btn primary" type="submit">Send reset link</button>' + msg + '<button class="btn ghost" type="button" data-act="auth-tab" data-v="signin">Back to sign in</button></form>';
+    else f = '<form id="auth-form" class="stack" style="gap:12px" onsubmit="event.preventDefault();ACT[\'auth-signin\']()">' + input('auth-email', 'Email', 'email', 'username') + input('auth-pass', 'Password', 'password', 'current-password') +
+      '<button class="btn primary" type="submit">Sign in</button>' + msg + '<button class="btn ghost" type="button" data-act="auth-tab" data-v="forgot">Forgot password?</button></form>';
+    form = (tab === 'forgot' ? '' : segEl([['signin', 'Sign in'], ['signup', 'Create account']], tab, 'auth-tab')) + '<div><div class="eyebrow">' + head[0] + '</div><h2 style="font-size:24px;margin-top:4px">' + head[1] + '</h2></div>' + f;
+  }
+  return '<div class="login">' + art + '<section class="login-form">' + form + '</section></div>';
+};
+function authVal(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function authMsg(text, ok) { Cloud.authMsg = text ? { text, ok } : null; const el = document.getElementById('auth-msg'); if (el) { el.className = 'auth-msg ' + (ok ? 'ok' : 'bad'); el.textContent = text || ''; } }
+async function authRun(fn) {
+  if (Cloud.busy) return;
+  const btn = document.querySelector('#auth-form button[type=submit]');
+  Cloud.busy = true; if (btn) btn.disabled = true; authMsg('');
+  try { await fn(); } catch (e) { authMsg(e.message || String(e)); }
+  finally { Cloud.busy = false; const b = document.querySelector('#auth-form button[type=submit]'); if (b) b.disabled = false; }
+}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+Object.assign(ACT, {
+  'auth-tab': el => { Cloud.authTab = el.dataset.v; Cloud.authMsg = null; render(); const f = document.getElementById(Cloud.authTab === 'signup' ? 'auth-name' : 'auth-email'); if (f) f.focus(); },
+  'auth-signin': () => authRun(async () => {
+    const email = authVal('auth-email').trim(), pass = authVal('auth-pass');
+    if (!EMAIL_RE.test(email)) throw new Error('Enter a valid email address.');
+    if (!pass) throw new Error('Enter your password.');
+    await cloudSignIn(email, pass);
+  }),
+  'auth-signup': () => authRun(async () => {
+    const name = authVal('auth-name').trim(), email = authVal('auth-email').trim(), pass = authVal('auth-pass');
+    if (!name) throw new Error('Enter your name.');
+    if (!EMAIL_RE.test(email)) throw new Error('Enter a valid email address.');
+    if (pass.length < 10) throw new Error('Use a password of at least 10 characters.');
+    if (await cloudSignUp(email, pass, name) === 'confirm') { Cloud.authTab = 'signin'; Cloud.authMsg = { text: 'Account created. Check your email and open the confirmation link, then sign in.', ok: true }; render(); }
+  }),
+  'auth-forgot': () => authRun(async () => {
+    const email = authVal('auth-email').trim();
+    if (!EMAIL_RE.test(email)) throw new Error('Enter a valid email address.');
+    await cloudResetPassword(email);
+    authMsg('If an account exists for ' + email + ', we sent a link to reset the password. It can take a few minutes.', true);
+  }),
+  'auth-newpass': () => authRun(async () => {
+    const a = authVal('auth-pass'), b = authVal('auth-pass2');
+    if (a.length < 10) throw new Error('Use a password of at least 10 characters.');
+    if (a !== b) throw new Error('The two passwords do not match.');
+    await cloudSetNewPassword(a);
+    toast('Password changed');
+  }),
+  'cloud-boot': () => cloudBoot(),
+  'cloud-old': el => cloudResolveOld(el.dataset.v),
+  'cloud-reload': () => location.reload(),
+  'cloud-retry': () => cloudFlush(),
+  'ws-open': () => { const id = document.getElementById('ws-switch').value; closeModal(); if (!Cloud.ws || id !== Cloud.ws.id) cloudOpen(id); },
+  'ws-settings': () => { closeModal(); App.ui.setTab = 'system'; go('settings'); },
+});
+// Real account + workspace switcher, shown at the top of the avatar menu in cloud mode.
+function cloudAccountHtml() {
+  const u = Cloud.user || {}; const ws = Cloud.ws;
+  const name = (u.user_metadata && u.user_metadata.display_name) || '';
+  const sw = Cloud.workspaces.length > 1
+    ? '<div class="row" style="gap:8px">' + selectEl('ws-switch', Cloud.workspaces.map(w => [w.id, w.name + ' · ' + w.role]), ws.id, 'style="flex:1" aria-label="Workspace"') + '<button class="btn" data-act="ws-open">Open</button></div>'
+    : '<div class="row" style="gap:8px"><b>' + esc(ws.name) + '</b>' + badge(ws.role, 'b-brand') + '</div>';
+  return '<div class="stack" style="gap:12px">' + field('Signed in as', '<div><b>' + esc(name || u.email) + '</b>' + (name ? ' <span class="muted">' + esc(u.email) + '</span>' : '') + '</div>') +
+    field('Workspace', sw + '<div style="margin-top:6px"><button class="btn ghost" data-act="ws-settings">' + icon('gear') + 'Workspace settings &amp; members</button></div>') + '</div>';
+}
+
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
 function scopeName() { const ids = activeCompanyIds(); return ids.length === state.companies.length ? 'Entire holding (' + ids.length + ' companies)' : ids.length === 1 ? company(ids[0]).name : ids.length + ' companies'; }
 function ytdRange(y) { y = y || CUR_YEAR; return [y + '-01-01', y + '-' + TODAY_S.slice(5)]; }

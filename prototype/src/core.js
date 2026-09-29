@@ -59,21 +59,33 @@ function uniq(a) { return [...new Set(a)]; }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function titleCase(s) { return String(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
 
-/* ---------- store ---------- */
+/* ---------- store ----------
+   Storage adapter. Store.local = this browser only (demo mode, the Artifact, tests).
+   cloud.js swaps in Store.cloud when window.HQ_CONFIG is present (real accounts, Supabase).
+   `state.session` (who you are acting as, company filter) is per person: the cloud adapter
+   strips it before saving and keeps it in this browser. */
 let state = null;
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.version === VERSION) return s; }
-  } catch (e) { /* storage unavailable — fall back to fresh seed */ }
-  return seedState();
-}
-let _saveT = null;
-function saveState() {
-  clearTimeout(_saveT);
-  _saveT = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { } }, 120);
-}
-function resetState() { try { localStorage.removeItem(STORE_KEY); } catch (e) { } state = seedState(); saveState(); }
+const Store = {
+  local: {
+    load() {
+      try {
+        const raw = localStorage.getItem(STORE_KEY);
+        if (raw) { const s = JSON.parse(raw); if (s && s.version === VERSION) return s; }
+      } catch (e) { /* storage unavailable — fall back to fresh seed */ }
+      return seedState();
+    },
+    _t: null,
+    save(s) { clearTimeout(this._t); this._t = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) { } }, 120); },
+    clear() { try { localStorage.removeItem(STORE_KEY); } catch (e) { } },
+  },
+  cloud: null,
+};
+let STORE = Store.local;
+// The shared part of the state (everything except the per-person session).
+function sharedState(s) { const o = Object.assign({}, s); delete o.session; return o; }
+function loadState() { return STORE.load(); }
+function saveState() { if (state) STORE.save(state); }
+function resetState() { STORE.clear(); const sess = state && state.session; state = seedState(); if (STORE !== Store.local && sess) state.session = sess; saveState(); }
 
 /* ---------- lookups ---------- */
 function get(coll, id) { return state[coll].find(x => x.id === id); }
