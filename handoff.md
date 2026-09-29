@@ -731,7 +731,7 @@ Everything needed to run this app lives in **four places**. Nothing important li
 |---|---|---|---|
 | Source code, docs, history | GitHub `sreyneanginvictus-health/management-app` (public; moved from *Sidiyatouch* 2026-09-29) + local folder `Documents\management app` | GitHub account *sreyneanginvictus-health* (sreyneang.invictus@gmail.com) | No — secrets are never committed (`.gitignore`: `.env*` except `.env.example`, `secrets/`) |
 | Hosting | Vercel project `management-app`, team "sidiyatouch's projects" (Hobby), domain `management-app-ashy.vercel.app` | Vercel login via GitHub *sreyneanginvictus-health* or email (sreyneang.invictus@gmail.com; old sidiyatouch333@gmail.com still attached) | Env vars (synced from Supabase) |
-| Database + accounts | Supabase org *Sidiyatouch* (Free) → project `management-app`, ref `xxylukhjhhvpxzfmcdvc`, Singapore | Supabase login via GitHub | DB password (owner's password manager only), API keys |
+| Database + accounts | Supabase org *Sidiyatouch* (Free) → project `management-app`, ref `xxylukhjhhvpxzfmcdvc`, Singapore | Owners: sreyneang.invictus@gmail.com (GitHub login *sreyneanginvictus-health*) and sidiyatouch333@gmail.com (GitHub login *Sidiyatouch*) | DB password (owner's password manager only), API keys |
 | Design prototype | claude.ai Artifact https://claude.ai/artifact/AEtxwRQFUe4W3mq7woe4xE | Owner's Claude account | No |
 | Glue | Vercel GitHub app (access: this repo only); Supabase ↔ Vercel integration (access: `management-app` only) | Installed by owner | — |
 

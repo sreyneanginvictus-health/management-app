@@ -6,7 +6,8 @@ Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 - GitHub repo transferred **Sidiyatouch/management-app → sreyneanginvictus-health/management-app** (account on sreyneang.invictus@gmail.com). Old URL redirects. Local `origin` updated.
 - Vercel: login switched from the Sidiyatouch GitHub to sreyneanginvictus-health; sreyneang.invictus@gmail.com added as login email (verification pending, then make it primary); project Git connection re-linked to the new repo. Vercel team/project/domain unchanged.
 - GitHub push protection flagged the fake `sb_secret_` test value in `tests/cloud.mjs`; the test now builds fake secrets at runtime.
-- **Next:** verify the Vercel email and make it primary; Supabase: sign in with GitHub as Sidiyatouch and invite sreyneang.invictus@gmail.com as Owner of org *Sidiyatouch* (project stays), then §15 P0.1.
+- Supabase: sreyneang.invictus@gmail.com invited and joined as **Owner** of org *Sidiyatouch* (project and data unchanged; Sidiyatouch login kept as second owner).
+- **Next:** verify the Vercel email and make it primary; §15 P0.1 from the main account.
 
 ## 2026-09-29 · Claude Code — real accounts + cloud-saved workspaces (§15 P0.3), branch `feat/p0-accounts`
 - **Two modes, picked at build time.** If `SUPABASE_URL` and a publishable key are set when building (Vercel Production), `index.html` runs in **cloud mode**. Otherwise (local dev, the Artifact, tests, previews) it is the same **demo mode** as before.
