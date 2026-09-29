@@ -216,9 +216,45 @@ function setAudit() {
 }
 CHANGE.auf = el => { App.ui.auf[el.dataset.k] = el.value; App.ui.aupg = 0; render(); };
 ACT['audit-open'] = el => { const a = state.audit.find(x => x.id === el.dataset.id); if (!a) return; const map = { task: 'task', approval: 'approval', transaction: 'transaction', project: 'project', risk: 'risk', invoice: 'invoice', bill: 'bill', user: 'user', company: 'company' }; if (map[a.type]) { const coll = { task: 'tasks', approval: 'approvals', transaction: 'transactions', project: 'projects', risk: 'risks', invoice: 'invoices', bill: 'bills', user: 'users', company: 'companies' }[a.type]; if (get(coll, a.entityId)) openEntity(map[a.type], a.entityId); } };
+function setWorkspace() {
+  const ws = Cloud.ws; const owner = ws.role === 'owner';
+  if (Cloud.membersFor !== ws.id) cloudLoadMembers().then(() => { if (App.route.page === 'settings' && App.ui.setTab === 'system') render(); });
+  const members = Cloud.members;
+  const memberRows = !members ? '<div class="muted small">Loading members…</div>' : members.map(m => {
+    const you = Cloud.user && m.user_id === Cloud.user.id;
+    return '<div class="member-row"><div class="grow"><b>' + esc(m.display_name || m.email || m.user_id.slice(0, 8) + '…') + (you ? ' <span class="muted">(you)</span>' : '') + '</b>' + (m.email && m.display_name ? '<div class="muted small">' + esc(m.email) + '</div>' : '') + '</div>' +
+      badge(m.role, m.role === 'owner' ? 'b-brand' : '') + (owner && m.role !== 'owner' ? '<button class="btn ghost" data-act="ws-remove" data-id="' + esc(m.user_id) + '" aria-label="Remove member">' + icon('x') + '</button>' : '') + '</div>';
+  }).join('');
+  return card('Workspace', '<div class="stack" style="gap:14px">' +
+    '<div class="row" style="gap:8px;flex-wrap:wrap"><span data-save-status>' + cloudStatusHtml() + '</span><span class="muted small">Your role here: <b>' + esc(ws.role) + '</b>. Everyone you invite sees and edits the same data.</span></div>' +
+    (owner ? field('Name', '<div class="row" style="gap:8px"><input class="input" id="ws-name" maxlength="80" value="' + esc(ws.name) + '" style="flex:1"><button class="btn" data-act="ws-rename">Rename</button></div>', { for: 'ws-name' }) : field('Name', '<b>' + esc(ws.name) + '</b>')) +
+    field('Members', '<div>' + memberRows + '</div>' + (Cloud.membersErr ? '<div class="hint">' + esc(Cloud.membersErr) + '</div>' : '')) +
+    (owner ? field('Invite by email', '<form class="row" style="gap:8px;flex-wrap:wrap" onsubmit="event.preventDefault();ACT[\'ws-invite\']()"><input class="input" id="ws-invite-email" type="email" placeholder="colleague@example.com" style="flex:1;min-width:180px" aria-label="Email to invite">' + selectEl('ws-invite-role', [['editor', 'Editor'], ['viewer', 'Viewer']], 'editor', 'aria-label="Role"') + '<button class="btn primary" type="submit">' + icon('plus') + 'Invite</button></form>',
+      { hint: 'They must create an account first. Editors can change everything; viewers can only look. Invite again with another role to change it.' }) : '') +
+    '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" data-act="ws-export">' + icon('file') + 'Export JSON</button></div></div>');
+}
+Object.assign(ACT, {
+  'ws-rename': async () => { try { await cloudRename(document.getElementById('ws-name').value); toast('Workspace renamed'); render(); } catch (e) { toast(e.message, true); } },
+  'ws-invite': async () => {
+    const email = document.getElementById('ws-invite-email').value.trim(); const role = document.getElementById('ws-invite-role').value;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Enter a valid email address.', true); return; }
+    try { await cloudInvite(email, role); toast(email + ' added as ' + role); render(); } catch (e) { toast(e.message, true); }
+  },
+  'ws-remove': async el => { if (!confirm('Remove this person from the workspace?')) return; try { await cloudRemoveMember(el.dataset.id); toast('Member removed'); render(); } catch (e) { toast(e.message, true); } },
+  'ws-export': () => {
+    const blob = new Blob([JSON.stringify(sharedState(state), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = (Cloud.ws ? Cloud.ws.name : 'northstar').replace(/[^\w-]+/g, '-').toLowerCase() + '-' + TODAY_S + '.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
+});
 function setSystem() {
   const size = (() => { try { return Math.round(JSON.stringify(state).length / 1024); } catch (e) { return 0; } })();
-  return '<div class="grid g2">' + card('Demo data', '<p style="margin-top:0">This prototype runs entirely in your browser. Changes you make (tasks, approvals, postings, settings) are saved in this browser only (' + size + ' KB). Other people do not see them.</p>' + (App.ui.confirmReset ? '<div class="action-bar"><span class="small" style="flex:1">Reset all data to the original sample? Your changes will be lost.</span><button class="btn" data-act="reset-cancel">Cancel</button><button class="btn danger solid" data-act="reset-go">Reset data</button></div>' : '<button class="btn danger" data-act="reset-ask">' + icon('undo') + 'Reset sample data</button>')) +
+  const ro = Cloud.ws && Cloud.ws.readOnly;
+  const intro = Cloud.ws
+    ? '<p style="margin-top:0">This workspace is saved in the cloud (' + size + ' KB). Resetting replaces everything in “' + esc(Cloud.ws.name) + '” with the original sample data, for every member.</p>'
+    : '<p style="margin-top:0">This prototype runs entirely in your browser. Changes you make (tasks, approvals, postings, settings) are saved in this browser only (' + size + ' KB). Other people do not see them.</p>';
+  return (Cloud.ws ? setWorkspace() + '<div style="height:16px"></div>' : '') + '<div class="grid g2">' + card(Cloud.ws ? 'Sample data' : 'Demo data', intro + (ro ? '' : App.ui.confirmReset ? '<div class="action-bar"><span class="small" style="flex:1">Reset all data to the original sample? Your changes will be lost.</span><button class="btn" data-act="reset-cancel">Cancel</button><button class="btn danger solid" data-act="reset-go">Reset data</button></div>' : '<button class="btn danger" data-act="reset-ask">' + icon('undo') + 'Reset sample data</button>')) +
     card('Architecture notes', '<ul style="margin:0;padding-left:18px;line-height:1.7"><li>One normalized data model: companies, departments, users, roles, tasks, projects, approvals, transactions, accounts, invoices, bills, budgets, KPIs, risks, documents, notifications, audit.</li><li>Workflow engines (tasks, approvals, ledger) are separate from screens, ready to move behind an API.</li><li>Approval routing, thresholds, permissions and alerts are configuration, not code.</li><li>Ledger is append-only after posting: reversals and adjustments, never edits.</li><li>Planned next: server + real authentication, email/Slack notifications, accrual accounting and intercompany eliminations, multi-currency, mobile app, AI assistants for summaries and anomaly checks.</li></ul>') + '</div>';
 }
 Object.assign(ACT, {
@@ -227,9 +263,11 @@ Object.assign(ACT, {
 });
 
 /* ---------- boot ---------- */
+// Demo mode: load from this browser and render. Cloud mode: sign in → open a workspace (async).
 (function boot() {
-  state = loadState();
   try { const t = localStorage.getItem('northstar-theme'); if (t) applyTheme(t); } catch (e) { }
   bindEvents();
+  if (Cloud.enabled) { cloudBoot(); return; }
+  state = loadState();
   render();
 })();

@@ -2,6 +2,17 @@
 
 Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 
+## 2026-09-29 · Claude Code — real accounts + cloud-saved workspaces (§15 P0.3), branch `feat/p0-accounts`
+- **Two modes, picked at build time.** If `SUPABASE_URL` and a publishable key are set when building (Vercel Production), `index.html` runs in **cloud mode**. Otherwise (local dev, the Artifact, tests, previews) it is the same **demo mode** as before.
+- **Cloud mode:** Create account / Sign in / Forgot password (+ set new password from the reset link). A new account gets "My workspace" with the Northstar sample data. Changes autosave about 1.5 s after you stop, with a status pill in the top bar: Saved · 2 s ago / Saving… / Not saved (retries on its own) / Reload to get the latest (conflict) / View only. Avatar menu shows your real email, a workspace switcher and **Act as…** (the old Switch user) to try every role. Sign out clears this browser.
+- **Settings → System & data → Workspace:** rename (owner), members list, invite by email as editor/viewer (owner), remove member, Export JSON. Workspaces saved by an older app version ask "Reset to sample data / Keep (read-only)".
+- `core.js`: storage adapter (`Store.local` / `Store.cloud`, `sharedState()` strips the per-person `session`). New `cloud.js`. Async boot in `views_misc.js`.
+- `tools/build.mjs`: inlines only the URL + publishable/anon key, into `index.html` only, and **fails the build** on secret keys, service-role JWTs, non-https URLs, or any secret value in the output. supabase-js 2.117.2 is vendored in `prototype/vendor/` (MIT) and served from our own domain.
+- New `supabase/migrations/0002_member_list.sql` (members' names/emails for the Workspace card). Without it the app still works but shows member ids only.
+- Tests: new `tests/cloud.mjs` covers the build guards and every P0.4 flow (sign up, errors, autosave + reload, second device, conflict, isolation, invites, viewer, old version, sign-out cleanup) against an in-memory fake Supabase. `npm test` runs both suites; all green.
+- **Not live yet.** Merging to `main` switches the live site to cloud mode immediately (Production already has the env vars), so do P0.1 first.
+- **Next:** owner does §15 P0.1 (auth settings + run migrations 0001 and 0002) → merge `feat/p0-accounts` → run the P0.4 checks on the live site → P0.5 onboard Alex. Cowork: the Artifact is unchanged (demo mode), so it doesn't need republishing for this change.
+
 ## 2026-09-29 · Claude (Cowork) — accounts plan
 - Confirmed: **no real user accounts yet** (demo sign-in, any password; data only in the browser). Added "Accounts & data — honest status" to handoff §3.
 - New **§15 P0 — Real accounts + cloud-saved data** so Alex can sign up and prototype: Supabase dashboard steps, full SQL migration, file-by-file app changes, acceptance checklist, onboarding steps.

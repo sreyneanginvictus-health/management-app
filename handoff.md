@@ -11,8 +11,8 @@
 | Repo | https://github.com/Sidiyatouch/management-app (public, no license = all rights reserved) |
 | Database | Supabase project `management-app` (org Sidiyatouch, Free, Singapore `ap-southeast-1`) — linked, not yet used by the app |
 | Prototype codename | "Northstar Holding OS" (fictional sample company, replace with real data later) |
-| Status | v0.1 functional prototype — single HTML file, browser-only storage, sample data. **No real user accounts yet → top priority is §15 P0 (real sign-up + cloud storage).** |
-| Last updated | 2026-09-29 by Claude (Cowork) |
+| Status | v0.1 functional prototype — single HTML file, sample data. **Real accounts + cloud-saved workspaces are built (branch `feat/p0-accounts`, §15 P0.3) but not live yet: the owner does §15 P0.1 first, then merge to `main`.** |
+| Last updated | 2026-09-29 by Claude Code |
 
 ---
 
@@ -70,16 +70,19 @@ The owner chose to run Claude Code here with `--dangerously-skip-permissions` (`
 
 ## 3. Current state (v0.1 prototype)
 
-A working single-page prototype with realistic sample data. Every button, filter, form, workflow and role switch works. Data is stored in the viewer's browser (`localStorage`), so each person testing it sees their own copy.
+A working single-page prototype with realistic sample data. Every button, filter, form, workflow and role switch works. It runs in one of two modes, chosen at build time:
+
+- **Demo mode** (no Supabase env vars: `npm run dev`, the claude.ai Artifact, `npm test`, Vercel previews): pick a sample person, any password; data lives in the viewer's browser (`localStorage`).
+- **Cloud mode** (`SUPABASE_URL` + publishable key set when building — i.e. Vercel Production): real accounts (Supabase Auth) and cloud-saved **workspaces**; see §15 P0.
 
 ### Accounts & data — honest status (2026-09-29)
 
 | Question | Answer today |
 |---|---|
-| Can a real person create an account? | **No.** The sign-in screen is a demo: the email must match a sample person and *any* password works (`ACT['login-email']` in `views_dash.js`, `login()` in `ui.js`). "Add person" in People only adds a sample record, not a login. |
-| Where is data saved? | Only in the visitor's browser (`localStorage` key `northstar-hcms-state`, `loadState/saveState` in `core.js`). Clearing the browser, another device or another person = different, separate data. |
-| Is Supabase used? | No. The project exists and is linked to Vercel, but has no tables and the app never calls it. |
-| What's needed so Alex (owner's teacher) can sign up and prototype with saved data? | §15 **P0** below. |
+| Can a real person create an account? | **In cloud mode, yes** (code done on branch `feat/p0-accounts`, tested against a fake Supabase in `tests/cloud.mjs`). Create account / Sign in / Forgot password → own workspace seeded with sample data. **Not live until** the owner does §15 P0.1 (run migrations 0001 + 0002, auth settings) and the branch is merged to `main`. In demo mode the old sample sign-in is unchanged. |
+| Where is data saved? | Cloud mode: Supabase table `workspaces` (one row per workspace, whole shared state as JSON, autosaved ~1.5 s after a change, conflict-checked by `revision`). Per-person bits (who you "act as", company filter) stay in the browser under `northstar-session:<workspace id>`. Demo mode: `localStorage` key `northstar-hcms-state`. |
+| Is Supabase used? | By cloud mode only. Tables are created by `supabase/migrations/0001_workspaces.sql` + `0002_member_list.sql` (not applied yet — §15 P0.1). |
+| What's left for Alex to sign up? | §15 P0.1 (owner, Supabase dashboard) → merge `feat/p0-accounts` → P0.4 live checks → P0.5 onboarding. |
 
 ### Hosting & deployment (since 2026-09-29)
 
@@ -89,8 +92,8 @@ A working single-page prototype with realistic sample data. Every button, filter
 | Site | Vercel project `management-app` (Hobby, team "sidiyatouch's projects") | `vercel.json`: no install step, `npm run build`, serves `prototype/dist`. Headers: nosniff, `X-Frame-Options: DENY`, strict referrer, camera/mic/geo off; HSTS by Vercel. Deployment Protection = Standard (preview URLs need a Vercel login; the production domain is public). |
 | Database | Supabase `management-app` (`xxylukhjhhvpxzfmcdvc`, Singapore) | Data API on; **new tables are NOT exposed automatically**; **automatic RLS on** for new public tables. Linked to Vercel via the Supabase integration (Vercel project `management-app` only). It synced 16 Production env vars: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_*` (browser-safe with RLS) and **secrets** `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `POSTGRES_*` (server-only). |
 
-- **The prototype still stores data in each visitor's browser.** Supabase is linked but unused until the v1 backend work (§10, §15).
-- **Secret handling:** `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` and `POSTGRES_*` must never be written into the browser bundle — `tools/build.mjs` must only ever inline `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`, and only once every table has RLS policies. The DB password lives in the owner's password manager only.
+- **Merging to `main` switches the live site to cloud mode immediately**, because Vercel Production already has `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY`. Run the migrations first (§15 P0.1), or visitors see "The database is not set up yet". Previews have no Supabase vars → demo mode.
+- **Secret handling:** `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` and `POSTGRES_*` must never be written into the browser bundle — `tools/build.mjs` only ever inlines the URL + publishable/anon key, and **fails the build** on an `sb_secret_` key, a non-anon JWT, a non-https URL, or if the output contains `sb_secret_`/`service_role`/`POSTGRES` or the value of any `*SECRET*`/`*JWT*`/`*POSTGRES*`/`*PASSWORD*` variable (tested in `tests/cloud.mjs`). The DB password lives in the owner's password manager only.
 - **Public means public:** anyone with the URL sees the sample Northstar data. Before real company data goes in: real auth, server-side RBAC, RLS policies, and consider Vercel password protection or a private repo.
 - `.env.example` lists the variable names; real values live in Vercel/Supabase, never in git.
 
@@ -133,18 +136,20 @@ management app/
 ├─ package.json           ← npm run build / npm test
 ├─ vercel.json            ← Vercel build/output settings + security headers
 ├─ .env.example           ← names of Supabase env vars (values never in git)
-├─ supabase/migrations/   ← database schema, applied in order (0001_workspaces.sql = §15 P0)
+├─ supabase/migrations/   ← database schema, applied in order (0001_workspaces.sql, 0002_member_list.sql = §15 P0)
 ├─ docs/
 │  └─ mcp.providers.example.json  ← template for financial data-provider MCPs (needs credentials)
 ├─ tools/build.mjs        ← concatenates src → dist (cross-platform)
-├─ tests/smoke.mjs        ← Playwright: every role × page, plus workflow assertions
+├─ tests/smoke.mjs        ← Playwright: every role × page, plus workflow assertions (demo mode)
+├─ tests/cloud.mjs        ← build secret guards + cloud mode flows against an in-memory fake Supabase
 └─ prototype/
    ├─ src/                ← EDIT THESE
    │  ├─ core.js          helpers, store, permissions, scope, audit, notifications,
    │  │                   TASK / APPROVAL / FINANCE engines (pure logic, no DOM)
    │  ├─ data.js          seed generator (deterministic, relative to today) + default settings/rules
+   │  ├─ cloud.js         cloud mode: Supabase client, sign up/in/out, workspaces, members, autosave
    │  ├─ ui.js            icons, components, SVG charts, modal/drawer, shell, router, event wiring, search
-   │  ├─ views_dash.js    login + 5 role dashboards
+   │  ├─ views_dash.js    login (demo) + create account/sign in (cloud) + 5 role dashboards
    │  ├─ views_tasks.js   tasks (list/board/drawer/forms) + projects (list/detail/new)
    │  ├─ views_approvals.js  Approval Center, request form with live route preview
    │  ├─ views_finance.js    overview, transactions, budgets, AR, AP, bank & cash, statements, monthly/yearly
@@ -152,12 +157,13 @@ management app/
    │  ├─ views_reports.js reports & KPIs (6 tabs) + operations (risk register, recurring work)
    │  ├─ views_misc.js    documents, calendar, notifications, settings, BOOT (must load last)
    │  └─ styles.css       design tokens (light/dark), components
+   ├─ vendor/             ← supabase-js 2.117.2 UMD (MIT, pinned); copied to dist/vendor in cloud builds
    └─ dist/               ← generated; do not edit
 ```
 
 ### Architecture of the prototype
 
-- **One normalized `state` object** (collections like DB tables) persisted to `localStorage` key `northstar-hcms-state` (`VERSION` in `core.js` — bump it when the schema changes; old data is discarded and reseeded).
+- **One normalized `state` object** (collections like DB tables) persisted through a storage adapter in `core.js` (`STORE` = `Store.local` → `localStorage` key `northstar-hcms-state`, or `Store.cloud` from `cloud.js`). `VERSION` in `core.js` — bump it when the schema changes; demo data is reseeded, cloud workspaces ask "Reset to sample data / Keep (read-only)".
 - **Engines are separate from screens.** `createTask/delegateTask/submitTask/reviewTask`, `createApproval/buildSteps/decideApproval/applyApprovalEffects`, `createTransaction/postTransaction/reverseTransaction/adjustTransaction`, `pnl/balanceSheet/cashFlow/budgetRows` live in `core.js` and never touch the DOM. These are the pieces to port into the real backend.
 - **Rendering:** string templates → `innerHTML`; `render()` redraws the page, `renderDrawer()` the side panel. Events use delegation: `data-act="name"` → `ACT[name]`, `data-act-change` / `data-act-input` → `CHANGE[name]`.
 - **Clock:** `nowISO()` (overridable via `_fakeNow` during seeding). All sample dates are relative to today.
@@ -293,7 +299,9 @@ Visual direction came from the owner's references: deep indigo panels, soft lave
 
 ## 9. Known limitations (prototype)
 
-- Browser-only storage, no real users/auth (any password), no server-side enforcement. **Being fixed first: §15 P0.**
+- Cloud mode stores each workspace as one JSON document; access is per workspace (owner/editor/viewer), not per record. Inside a workspace, roles are "Act as" personas, not tied to the real account (`users[].authUserId` not added yet). Server-side RBAC comes with §15 item 7.
+- Viewers see a "View only" banner and nothing they change is saved, but editing controls are not hidden.
+- Save conflicts are detected, not merged: the later tab/device must reload and redo its last changes.
 - File attachments store name + size only.
 - Cash-basis accounting; no double-entry, chart of accounts, accruals, VAT/GST, intercompany eliminations, FX.
 - Balance sheet is simplified (retained earnings is a plug).
@@ -502,6 +510,7 @@ interface Connector {
 | 2026-09-28 | Claude Code runs in this folder with `--dangerously-skip-permissions` via `start-claude.cmd/.ps1`; project deny rules as guardrails | Owner |
 | 2026-09-29 | Real accounts + cloud-saved data is the #1 priority (§15 P0) so Alex can sign up and prototype; first version stores each workspace as one JSON document in Supabase, normalized tables come later (§15 item 7) | Owner |
 | 2026-09-29 | Public GitHub repo + Vercel hosting (production public) + Supabase in Singapore with auto-RLS and no auto-exposed tables; app keeps browser storage for now | Owner |
+| 2026-09-29 | P0 built on a branch; vendored supabase-js 2.117.2 served from our own domain (not a CDN); cloud mode switches on automatically when the build sees the Supabase URL + publishable key; default "Act as" persona = sample Owner | Claude Code |
 | 2026-09-28 | Runway = cash ÷ average monthly posted expenses (incl. capex and loan repayments) over the last N full months; `prototype/dist/` is not committed (build output) | Claude Code (placeholder, owner to confirm) |
 
 ---
@@ -511,6 +520,8 @@ interface Connector {
 *Done 2026-09-28 (Claude Code): git repo initialized on `main`; project health formula and cash-low alert moved into Settings → Business rules with UI + tests.*
 
 *Done 2026-09-29 (Cowork): GitHub repo, Vercel deploy, Supabase project linked (see §3 Hosting & deployment).*
+
+*Done 2026-09-29 (Claude Code): §15 P0.3 app changes on branch `feat/p0-accounts` (not merged). Remaining: P0.1 (owner), merge, P0.4 live checks, P0.5.*
 
 ### P0 — Real accounts + cloud-saved data (do this first)
 
@@ -523,8 +534,9 @@ interface Connector {
 1. **Auth → URL Configuration:** Site URL `https://management-app-ashy.vercel.app`; Redirect URLs add `https://management-app-ashy.vercel.app/**`, `https://*-sidiyatouch.vercel.app/**` (previews), `http://localhost:5173/**`.
 2. **Auth → Sign In / Providers → Email:** enabled; minimum password length 10. **"Confirm email": OFF for the prototype phase** (built-in mail only reaches Supabase org members, ~2/hour — see §13 #11). Turn it back ON after custom SMTP is set up.
 3. **Auth → Sign-ups:** allowed (default, §13 #10). To go invite-only later: disable sign-ups and use Auth → Users → *Invite user* (needs custom SMTP).
-4. Run **`supabase/migrations/0001_workspaces.sql`** (already in the repo; same SQL as below) in **SQL Editor**, or `supabase db push` once the Supabase CLI is linked. Keep every future schema change as a new numbered file there so the database can be rebuilt anywhere (§16).
+4. Run **`supabase/migrations/0001_workspaces.sql`** and then **`0002_member_list.sql`** (members list with names/emails in Settings → System) in **SQL Editor**, or `supabase db push` once the Supabase CLI is linked. Keep every future schema change as a new numbered file there so the database can be rebuilt anywhere (§16).
 5. **Vercel → Settings → Environment Variables:** `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` already exist for **Production** (synced by the integration). Also tick **Preview** for those two if preview deployments should have accounts too. Redeploy after changes.
+6. **Then** merge `feat/p0-accounts` into `main` (Vercel deploys it; the live site switches to cloud mode). Doing this before step 4 shows visitors "The database is not set up yet".
 
 #### P0.2 Database migration `supabase/migrations/0001_workspaces.sql`
 
@@ -656,7 +668,9 @@ revoke execute on function public.save_workspace(uuid,jsonb,bigint,int), public.
 grant execute on function public.save_workspace(uuid,jsonb,bigint,int), public.invite_member(uuid,text,text), public.has_ws_role(uuid,text) to authenticated;
 ```
 
-#### P0.3 App changes (Claude Code)
+#### P0.3 App changes (Claude Code) — ✅ done 2026-09-29 on `feat/p0-accounts`
+
+As built (differences from the plan below): supabase-js **2.117.2** is **vendored** in `prototype/vendor/` and served from our own domain (`dist/vendor/`) instead of a CDN (no third-party script, no SRI drift, works on localhost). The build also accepts `SUPABASE_ANON_KEY` (anon JWT) as a fallback. New workspaces get their id from the browser (`crypto.randomUUID()`) because the row isn't readable until the owner-membership trigger has run. `users[].authUserId` was not added (nothing uses it yet); the default "Act as" persona is the sample Owner (Sophea Chan). Viewers get a "View only" banner and no saves rather than hidden controls. Tests: `tests/cloud.mjs` runs every P0.4 flow against an in-memory fake of the migration's rules.
 
 | File | Change |
 |---|---|
@@ -673,7 +687,9 @@ grant execute on function public.save_workspace(uuid,jsonb,bigint,int), public.i
 
 #### P0.4 Acceptance checklist (all must pass)
 
-- [ ] `npm run build` without Supabase env → demo mode exactly as today; `npm test` green.
+Status 2026-09-29: the unticked items all pass in `npm test` against a fake Supabase (`tests/cloud.mjs`); tick them after checking on the live site (after P0.1 + merge).
+
+- [x] `npm run build` without Supabase env → demo mode exactly as today; `npm test` green.
 - [ ] On the live site: sign up with a new email → lands in "My workspace" with sample data within 5 s.
 - [ ] Make a change (e.g. create a task), refresh → still there. Open in another browser/device, sign in → still there.
 - [ ] Second account cannot see the first account's workspace (check in UI **and** with a direct `from('workspaces').select()` call from that account).
@@ -681,7 +697,7 @@ grant execute on function public.save_workspace(uuid,jsonb,bigint,int), public.i
 - [ ] Two tabs editing the same workspace → the later save gets the conflict message, no silent overwrite.
 - [ ] Wrong password, existing email on sign-up, and weak password show clear messages.
 - [ ] Sign out → back to sign-in; no workspace data left in `localStorage`.
-- [ ] Built `index.html` contains no `sb_secret_`, `service_role`, `POSTGRES`, or JWT secret (add this grep to `npm test`).
+- [x] Built `index.html` contains no `sb_secret_`, `service_role`, `POSTGRES`, or JWT secret (build fails otherwise; also checked in `tests/cloud.mjs`).
 - [ ] Supabase **Advisors → Security** shows no errors.
 
 #### P0.5 Onboarding Alex (after P0 ships)
