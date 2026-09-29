@@ -8,7 +8,7 @@
 | Folder | `Documents\management app\` (Windows) — this folder |
 | Live prototype | https://claude.ai/artifact/AEtxwRQFUe4W3mq7woe4xE (private; the owner shares it) |
 | Public site | https://management-app-ashy.vercel.app (Vercel, auto-deploys every push to `main`) |
-| Repo | https://github.com/Sidiyatouch/management-app (public, no license = all rights reserved) |
+| Repo | https://github.com/sreyneanginvictus-health/management-app (public; moved from `Sidiyatouch` on 2026-09-29, old URL redirects, no license = all rights reserved) |
 | Database | Supabase project `management-app` (org Sidiyatouch, Free, Singapore `ap-southeast-1`) — linked, not yet used by the app |
 | Prototype codename | "Northstar Holding OS" (fictional sample company, replace with real data later) |
 | Status | v0.1 functional prototype — single HTML file, sample data. **Real accounts + cloud-saved workspaces are built (branch `feat/p0-accounts`, §15 P0.3) but not live yet: the owner does §15 P0.1 first, then merge to `main`.** |
@@ -88,7 +88,7 @@ A working single-page prototype with realistic sample data. Every button, filter
 
 | Piece | Where | Notes |
 |---|---|---|
-| Code | GitHub `Sidiyatouch/management-app` | Local folder pushes to `origin main`. The Vercel GitHub app has access to this repo only. |
+| Code | GitHub `sreyneanginvictus-health/management-app` (moved from `Sidiyatouch` 2026-09-29) | Local folder pushes to `origin`. Vercel Git connection must be re-linked to the new owner (see §16.4). |
 | Site | Vercel project `management-app` (Hobby, team "sidiyatouch's projects") | `vercel.json`: no install step, `npm run build`, serves `prototype/dist`. Headers: nosniff, `X-Frame-Options: DENY`, strict referrer, camera/mic/geo off; HSTS by Vercel. Deployment Protection = Standard (preview URLs need a Vercel login; the production domain is public). |
 | Database | Supabase `management-app` (`xxylukhjhhvpxzfmcdvc`, Singapore) | Data API on; **new tables are NOT exposed automatically**; **automatic RLS on** for new public tables. Linked to Vercel via the Supabase integration (Vercel project `management-app` only). It synced 16 Production env vars: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_*` (browser-safe with RLS) and **secrets** `SUPABASE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `POSTGRES_*` (server-only). |
 
@@ -729,8 +729,8 @@ Everything needed to run this app lives in **four places**. Nothing important li
 
 | What | Where | Owner / login | Holds secrets? |
 |---|---|---|---|
-| Source code, docs, history | GitHub `Sidiyatouch/management-app` (public) + local folder `Documents\management app` | GitHub account *Sidiyatouch* | No — secrets are never committed (`.gitignore`: `.env*` except `.env.example`, `secrets/`) |
-| Hosting | Vercel project `management-app`, team "sidiyatouch's projects" (Hobby), domain `management-app-ashy.vercel.app` | Vercel login via GitHub (*sidiyatouch333@gmail.com*) | Env vars (synced from Supabase) |
+| Source code, docs, history | GitHub `sreyneanginvictus-health/management-app` (public; moved from *Sidiyatouch* 2026-09-29) + local folder `Documents\management app` | GitHub account *sreyneanginvictus-health* (sreyneang.invictus@gmail.com) | No — secrets are never committed (`.gitignore`: `.env*` except `.env.example`, `secrets/`) |
+| Hosting | Vercel project `management-app`, team "sidiyatouch's projects" (Hobby), domain `management-app-ashy.vercel.app` | Vercel login via GitHub *sreyneanginvictus-health* or email (sreyneang.invictus@gmail.com; old sidiyatouch333@gmail.com still attached) | Env vars (synced from Supabase) |
 | Database + accounts | Supabase org *Sidiyatouch* (Free) → project `management-app`, ref `xxylukhjhhvpxzfmcdvc`, Singapore | Supabase login via GitHub | DB password (owner's password manager only), API keys |
 | Design prototype | claude.ai Artifact https://claude.ai/artifact/AEtxwRQFUe4W3mq7woe4xE | Owner's Claude account | No |
 | Glue | Vercel GitHub app (access: this repo only); Supabase ↔ Vercel integration (access: `management-app` only) | Installed by owner | — |
@@ -738,7 +738,7 @@ Everything needed to run this app lives in **four places**. Nothing important li
 ### 16.2 Run it on a new computer
 
 ```powershell
-git clone https://github.com/Sidiyatouch/management-app.git "$HOME\Documents\management app"
+git clone https://github.com/sreyneanginvictus-health/management-app.git "$HOME\Documents\management app"
 cd "$HOME\Documents\management app"
 npm i                      # dev deps only (Playwright for tests)
 npx playwright install chromium

@@ -2,6 +2,12 @@
 
 Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 
+## 2026-09-29 · Claude Code — accounts moved to the owner's main email
+- GitHub repo transferred **Sidiyatouch/management-app → sreyneanginvictus-health/management-app** (account on sreyneang.invictus@gmail.com). Old URL redirects. Local `origin` updated.
+- Vercel: login switched from the Sidiyatouch GitHub to sreyneanginvictus-health; sreyneang.invictus@gmail.com added as login email (verification pending, then make it primary); project Git connection re-linked to the new repo. Vercel team/project/domain unchanged.
+- GitHub push protection flagged the fake `sb_secret_` test value in `tests/cloud.mjs`; the test now builds fake secrets at runtime.
+- **Next:** verify the Vercel email and make it primary; Supabase: sign in with GitHub as Sidiyatouch and invite sreyneang.invictus@gmail.com as Owner of org *Sidiyatouch* (project stays), then §15 P0.1.
+
 ## 2026-09-29 · Claude Code — real accounts + cloud-saved workspaces (§15 P0.3), branch `feat/p0-accounts`
 - **Two modes, picked at build time.** If `SUPABASE_URL` and a publishable key are set when building (Vercel Production), `index.html` runs in **cloud mode**. Otherwise (local dev, the Artifact, tests, previews) it is the same **demo mode** as before.
 - **Cloud mode:** Create account / Sign in / Forgot password (+ set new password from the reset link). A new account gets "My workspace" with the Northstar sample data. Changes autosave about 1.5 s after you stop, with a status pill in the top bar: Saved · 2 s ago / Saving… / Not saved (retries on its own) / Reload to get the latest (conflict) / View only. Avatar menu shows your real email, a workspace switcher and **Act as…** (the old Switch user) to try every role. Sign out clears this browser.
