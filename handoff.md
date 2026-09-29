@@ -534,7 +534,7 @@ interface Connector {
 1. **Auth → URL Configuration:** Site URL `https://management-app-ashy.vercel.app`; Redirect URLs add `https://management-app-ashy.vercel.app/**`, `https://*-sidiyatouch.vercel.app/**` (previews), `http://localhost:5173/**`.
 2. **Auth → Sign In / Providers → Email:** enabled; minimum password length 10. **"Confirm email": OFF for the prototype phase** (built-in mail only reaches Supabase org members, ~2/hour — see §13 #11). Turn it back ON after custom SMTP is set up.
 3. **Auth → Sign-ups:** allowed (default, §13 #10). To go invite-only later: disable sign-ups and use Auth → Users → *Invite user* (needs custom SMTP).
-4. Run **`supabase/migrations/0001_workspaces.sql`** and then **`0002_member_list.sql`** (members list with names/emails in Settings → System) in **SQL Editor**, or `supabase db push` once the Supabase CLI is linked. Keep every future schema change as a new numbered file there so the database can be rebuilt anywhere (§16).
+4. ✅ 2026-09-29: ran **`supabase/migrations/0001_workspaces.sql`**, **`0002_member_list.sql`** and **`0003_lock_trigger_functions.sql`** (members list with names/emails in Settings → System) in **SQL Editor**, or `supabase db push` once the Supabase CLI is linked. Keep every future schema change as a new numbered file there so the database can be rebuilt anywhere (§16).
 5. **Vercel → Settings → Environment Variables:** `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` already exist for **Production** (synced by the integration). Also tick **Preview** for those two if preview deployments should have accounts too. Redeploy after changes.
 6. **Then** merge `feat/p0-accounts` into `main` (Vercel deploys it; the live site switches to cloud mode). Doing this before step 4 shows visitors "The database is not set up yet".
 
@@ -698,7 +698,7 @@ Status 2026-09-29: the unticked items all pass in `npm test` against a fake Supa
 - [ ] Wrong password, existing email on sign-up, and weak password show clear messages.
 - [ ] Sign out → back to sign-in; no workspace data left in `localStorage`.
 - [x] Built `index.html` contains no `sb_secret_`, `service_role`, `POSTGRES`, or JWT secret (build fails otherwise; also checked in `tests/cloud.mjs`).
-- [ ] Supabase **Advisors → Security** shows no errors.
+- [x] Supabase **Advisors → Security** shows no errors (2026-09-29: 0 errors; remaining warnings are the intended signed-in RPCs + Supabase's own `rls_auto_enable`).
 
 #### P0.5 Onboarding Alex (after P0 ships)
 
