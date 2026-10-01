@@ -74,8 +74,9 @@ function seedState() {
     AC('8200', 'Interest income', 'Finance income', 'income', 'OS'), AC('8300', 'Interest expense / bank charges', 'Finance costs', 'expense', 'OS'),
     AC('1500', 'Property, plant & equipment', 'Property, plant & equipment', 'sfp', 'TX', { cf: 'investing' }),
     AC('1600', 'Intangible assets - app / software', 'Intangible assets', 'sfp', 'TX', { cf: 'investing' }),
-    AC('2500', 'Repayment of borrowings', 'Borrowings', 'sfp', 'OS', { cf: 'financing' }),
-    AC('3100', 'Share capital', 'Share capital', 'sfp', 'OS', { cf: 'financing' }),
+    AC('2400', 'Borrowings received (investor / bank loans)', 'Borrowings', 'sfp', 'OS', { cf: 'financing', dir: 'in' }),
+    AC('2500', 'Repayment of borrowings', 'Borrowings', 'sfp', 'OS', { cf: 'financing', dir: 'out' }),
+    AC('3100', 'Share capital', 'Share capital', 'sfp', 'OS', { cf: 'financing', dir: 'in' }),
   ];
 
   /* ---------- company (one, set by the owner 2026-09-29) ---------- */
@@ -155,6 +156,7 @@ function seedState() {
     if (rnd() > .4 && lastDay > 10) mk(cid, day(RI(10, 26)), 'expense', 'Professional fees', R(1200, 4800), 'd_fin', pick(['Legal counsel', 'Audit & tax advisors', 'IT consultants']), 'Professional services');
     if (lastDay >= 15) mk(cid, day(15), 'expense', 'Utilities', PL.util * R(.9, 1.15), 'd_ops', 'Electricity & water utility', MONTHS[m] + ' utilities');
     mk(cid, day(28), 'expense', 'Interest expense / bank charges', R(40, 90), 'd_fin', 'Primary bank', 'Bank charges');
+    if (idx === 2) mk(cid, day(10), 'funding', 'Share capital', 600000, 'd_fin', 'Seed investors (sample)', 'Seed round — ordinary shares');
     if (idx === 14) mk(cid, day(12), 'expense', 'Property, plant & equipment', 42000, 'd_ops', 'Equipment supplier', 'Body-composition scanner and lab equipment');
   });
   txs.sort((a, b) => a.date < b.date ? -1 : 1);
@@ -162,8 +164,8 @@ function seedState() {
   s.transactions = txs; s.counters.tx = txs.length;
   { // opening balance so the operating account ends at a plausible cash level
     const a = s.accounts[0];
-    const flows = sum(txs, t => (t.kind === 'revenue' ? 1 : -1) * t.amount);
-    let run = 0, minRun = 0; for (const t of txs) { run += (t.kind === 'revenue' ? 1 : -1) * t.amount; minRun = Math.min(minRun, run); }
+    const flows = sum(txs, t => (t.kind !== 'expense' ? 1 : -1) * t.amount);
+    let run = 0, minRun = 0; for (const t of txs) { run += (t.kind !== 'expense' ? 1 : -1) * t.amount; minRun = Math.min(minRun, run); }
     a.opening = round(Math.max(820000 - flows, -minRun + 120000), 1000);
   }
   for (let k = 0; k < 3; k++) { const t = mk(cid, rel(-RI(3, 50)), 'expense', 'Transportation', RI(40, 380), 'd_ops', 'Taxi & meals', 'Petty cash spend'); t.accountId = 'a_c_lp_pc'; t.no = 'TX-' + String(++s.counters.tx).padStart(5, '0'); }
