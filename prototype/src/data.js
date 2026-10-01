@@ -274,3 +274,16 @@ function seedState() {
   s.session.userId = null;
   return s;
 }
+
+/* Empty workspace for real data (Settings → System & data → Clear sample data).
+   Keeps the company, departments, people, roles, chart of accounts and settings;
+   removes every sample record (work, finance, KPIs, documents, history). */
+function blankState() {
+  const s = seedState();
+  for (const k of ['tasks', 'projects', 'approvals', 'transactions', 'invoices', 'bills', 'budgets', 'kpis', 'risks', 'documents', 'events', 'notifications', 'audit', 'reportNotes']) s[k] = [];
+  s.reminderKeys = {}; s.counters = { task: 1000, approval: 300, tx: 0, risk: 0 };
+  s.accounts.forEach(a => { a.opening = 0; a.last4 = ''; });
+  s.companies.forEach(c => Object.assign(c, { fixedAssets: 0, loans: 0, capital: 0, description: '', founded: c.founded }));
+  s.blank = true;
+  return s;
+}

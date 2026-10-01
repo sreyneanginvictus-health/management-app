@@ -85,6 +85,12 @@ let STORE = Store.local;
 function sharedState(s) { const o = Object.assign({}, s); delete o.session; return o; }
 function loadState() { return STORE.load(); }
 function saveState() { if (state) STORE.save(state); }
+// Replace all sample records with an empty workspace (keeps people, roles, accounts chart, settings and who you are acting as).
+function clearSampleData() {
+  const sess = state && state.session; state = blankState(); if (sess) state.session = sess;
+  audit('reset', 'workspace', 'data', 'Cleared all sample data — empty workspace ready for real data');
+  saveState();
+}
 function resetState() { STORE.clear(); const sess = state && state.session; state = seedState(); if (STORE !== Store.local && sess) state.session = sess; saveState(); }
 
 /* ---------- lookups ---------- */

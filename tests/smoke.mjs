@@ -150,6 +150,27 @@ ok((await E("myNotifications().filter(n => n.title.includes('cash below')).lengt
 await E('state.settings.cashAlertMonths = 2');
 console.log('Runway (months):', await E("state.companies.map(c => company(c.id).short + ' ' + cashRunway([c.id]).months.toFixed(1)).join(', ')"));
 
+// 10) Clear sample data → empty workspace for real data: every role, every page, no errors; real entries work from scratch.
+await E("login('u_kim'); clearSampleData()");
+ok((await E("['tasks','projects','approvals','transactions','invoices','bills','budgets','kpis','risks','documents','events','reportNotes'].every(k => state[k].length === 0)")), 'sample records removed');
+ok((await E("state.users.length > 0 && state.coa.length > 0 && state.companies.length === 1 && state.session.userId === 'u_kim'")), 'people, chart of accounts, company and session kept');
+for (const u of users) {
+  await E(`login('${u}')`);
+  for (const p of pages) {
+    if (!(await E(`pageAllowed('${p}')`))) continue;
+    await E(`go('${p}')`);
+    const tabs = await E(`[...document.querySelectorAll('#content .tabs button')].map(b => b.dataset.v)`);
+    for (const v of [null, ...tabs]) {
+      if (v) await E(`document.querySelector('#content .tabs button[data-v="${v}"]')?.click()`);
+      ok(!(await pg.innerText('#content')).includes('Something went wrong'), `empty workspace: ${u} ${p} ${v || ''} rendered an error`);
+    }
+  }
+}
+await E("login('u_rachel')");
+const rtx = await E("createTransaction({ date: TODAY_S, companyId: 'c_lp', departmentId: 'd_fin', kind: 'revenue', category: 'Revenue - Home testing kits', amount: 1200, accountId: 'a_c_lp_op', party: 'First customer', memo: 'First real sale', docs: [{ id: 'f1', name: 'receipt.pdf', size: 1 }] }).id");
+await E(`postTransaction(get('transactions','${rtx}'))`);
+ok((await E("cashPosition(['c_lp'])")) === 1200, 'first real entry posts to an empty ledger');
+
 await browser.close();
 console.log(errors.length ? 'PAGE ERRORS:\n' + errors.join('\n') : 'No page errors');
 console.log(fails.length ? 'FAILED:\n' + fails.join('\n') : 'All checks passed');

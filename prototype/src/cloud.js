@@ -163,10 +163,11 @@ async function cloudOpen(id) {
   if (data.schema_version !== VERSION || !data.state || data.state.version !== VERSION) { Cloud.oldRow = data; cloudShow('old-version'); return; }
   cloudActivate(data.state, data.updated_at);
 }
-// Old-version choice: 'reset' = replace with fresh sample data (editors), 'keep' = open it read-only.
+// Old-version choice: 'reset' = fresh sample data, 'empty' = empty workspace for real data (editors), 'keep' = open it read-only.
 function cloudResolveOld(choice) {
   const row = Cloud.oldRow; Cloud.oldRow = null; if (!row) return;
   if (choice === 'reset' && Cloud.ws.role !== 'viewer') { cloudActivate(sharedState(seedState()), row.updated_at); Cloud.lastJson = null; saveState(); toast('Workspace reset to sample data'); }
+  else if (choice === 'empty' && Cloud.ws.role !== 'viewer') { cloudActivate(sharedState(blankState()), row.updated_at); Cloud.lastJson = null; saveState(); toast('Empty workspace ready for your real data'); }
   else { Cloud.ws.readOnly = true; cloudActivate(row.state || seedState(), row.updated_at); }
 }
 function cloudActivate(shared, updatedAt) {
