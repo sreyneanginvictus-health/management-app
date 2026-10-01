@@ -6,7 +6,7 @@ Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 - New entry type **Investor / owner funding** (Finance → **Record investor funding**, or Type in Record transaction). Accounts: **Share capital** (equity) and new **2400 Borrowings received** (loans). Funding raises cash, shows on the balance sheet (share capital / borrowings) and as financing in the cash flow statement — never as revenue or profit. Reversal works as for any posted entry.
 - **Bank & cash → Where the cash came from:** opening balances, revenue received, investor & owner funding, loans received, money paid out, cash today, plus the list of funding entries.
 - **Bank accounts:** Add account and Edit (name, bank, last 4 digits, **opening balance**), audited — needed after Clear sample data, when balances start at S$0.
-- Older saved workspaces are upgraded on load (): no data version bump, so real data entered since the last release is kept.
+- Older saved workspaces are upgraded on load (`upgradeState`): no data version bump, so real data entered since the last release is kept.
 - Sample data: a S$600k seed round (share capital). Tests: funding moves cash/capital/borrowings/financing but not revenue/profit; statements balance; reversal; upgrade of older workspaces; add account with opening balance. All green.
 - **Next:** owner tries it in the preview, then publish.
 
