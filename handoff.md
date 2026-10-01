@@ -115,12 +115,14 @@ Demo accounts are on the sign-in screen (any password works). Switch users from 
 | Kim Sreyneang | CEO | Entire holding | Executive dashboard, final approvals, all settings |
 | Snakeman | CTO | Entire holding | No finance by default — access control demo |
 | Nadia Rahman | CMO | Entire holding | Same permissions as the CTO |
-| Sokha Lim / Rachel Tan | Finance / Accounting | Entire holding | Ledger, posting, reversals, statements |
+| Sokha Lim | Financial | Entire holding | Financial System (IFRS statements, chart of accounts, Singapore tax & GST), overview notes, all finance |
+| Rachel Tan | Accounting | Entire holding | Day-to-day books (transactions, invoices, bills, bank, budgets) and Operations — no Financial System |
+| Daniel Ong | Investor (sample) | Entire holding | Sees only the Financial Overview; replies to notes |
 | Vannak Chea | Manager (Group Operations) | Entire holding | Team workload and reviews for Health, Logistics, Properties, HQ |
 | Ethan Park | Manager (Engineering, Digital) | Own company | Task reviews, board, Digital projects |
 | Piseth Noun / Lina Ortiz / Mony Keo / Jonah Reed | Team Member | Own work | Simple member dashboard |
 
-Roster set by the owner on 2026-09-29: roles are only CEO, CTO, CMO, Finance / Accounting, Manager, Team Member (no Owner / Board). CEO and CTO names were given by the owner; the CMO, managers, finance and team members are fictional sample names.
+Roster set by the owner on 2026-09-29, updated 2026-10-01: roles are CEO, CTO, CMO, **Financial**, **Accounting**, Manager, Team Member, **Investor** (no Owner / Board). CEO and CTO names were given by the owner; the CMO, managers, finance and team members are fictional sample names.
 
 ### File map
 
@@ -156,6 +158,7 @@ management app/
    │  ├─ views_finance.js    overview, transactions, budgets, AR, AP, bank & cash, statements, monthly/yearly
    │  ├─ views_org.js     companies (structure tree, KPIs), people directory, person drawer
    │  ├─ views_reports.js reports & KPIs (6 tabs) + operations (risk register, recurring work)
+   │  ├─ views_hub.js     Financial Overview (CEO & investor report with notes) + Financial System (IFRS statements, COA, tax & GST, assumptions)
    │  ├─ views_misc.js    documents, calendar, notifications, settings, BOOT (must load last)
    │  └─ styles.css       design tokens (light/dark), components
    ├─ vendor/             ← supabase-js 2.117.2 UMD (MIT, pinned); copied to dist/vendor in cloud builds
@@ -207,7 +210,7 @@ All collections live in `state`. Field names below are the contract to carry int
 1. **Permissions (per role)** decide modules and actions. Keys: `dashboard.view, tasks.view, tasks.create, projects.view, projects.manage, approvals.view, approvals.view_all, operations.view, finance.view, finance.manage, finance.confidential, budget.view_own, reports.view, reports.finance, kpi.update, companies.view, companies.manage, people.view, people.manage, documents.view, calendar.view, settings.admin, audit.view`.
 2. **Data scope (per person)** decides records: `holding` (all companies) · `company` (own company) · `department` (own department tree + direct/indirect reports) · `self` (own work).
 
-**Defaults:** CEO = all permissions (always keeps admin). CTO and CMO = work/ops/reports, **no finance**. Finance = finance + audit + financial reports. Manager = work, own department budget, KPIs. Member = own tasks, requests, documents, calendar.
+**Defaults:** CEO = all permissions (always keeps admin). CTO and CMO = work/ops/reports, **no finance**. **Financial** = all finance + Financial System + overview notes. **Accounting** = finance (record/post/reverse, invoices, bills, budgets) + operations, no Financial System, no financial reports, no confidential documents. **Investor** = Financial Overview only. Finance = finance + audit + financial reports. Manager = work, own department budget, KPIs. Member = own tasks, requests, documents, calendar.
 
 **Rules implemented:** sidebar shows only permitted sections; confidential money requests (expense/budget/payment/contract) are hidden from roles without `finance.view` unless they are the requester or an approver; confidential documents need `finance.confidential`; the Owner can never lose `settings.admin` (lock-out guard).
 
@@ -269,7 +272,11 @@ Everything here is stored in `state.settings` and editable in **Settings**. Repl
 | Task review required | On | Business rules | Placeholder |
 | Budget alert threshold | 80% | Business rules | Placeholder |
 | Deadline reminder | 2 days before due | Business rules | Placeholder |
-| Escalation role | Finance | Business rules | Placeholder — confirm with owner (was Owner / Board, removed 2026-09-29) |
+| Escalation role | Financial | Business rules | Placeholder — confirm with owner (was Owner / Board, removed 2026-09-29) |
+| "Finance" approval step | Financial position (Accounting if nobody holds it) | Approval engine | Placeholder |
+| Singapore tax & GST | CIT 17%, SUTE 75%/50% on first/next S$100k for the first 3 YAs, else partial exemption 75%/50% on S$10k/S$190k, rebate 0, GST 9%, threshold S$1M, not registered | Financial System → Assumptions | From the Invictus model, marked "verify" there |
+| Depreciation | Straight line, 5 years, from purchase month | Financial System → Assumptions | Placeholder |
+| Reporting currency | SGD (S$) | Business rules | Changed from USD 2026-10-01 to match SFRS(I) Singapore |
 | Currency | USD, single currency | Business rules | Multi-currency is Phase 2 |
 | Project health formula | at risk if ≥1 overdue task, >85% budget spent, or <70% progress within 21 days of due; off track if spent >100% of budget, ≥3 overdue, or past due | Business rules → Project health (`settings.projectHealth`, `projectHealth()` in core.js) | Placeholder; configurable |
 | Cash-low alert | Alert when a company's runway < **2 months** (0 = off). Runway = cash ÷ avg monthly costs (all posted expenses incl. capex & loan repayments) over the last **3** full months | Business rules (`settings.cashAlertMonths`, `runwayLookbackMonths`); shown in Finance → Bank & cash, dashboard alerts, login notifications | Placeholder; configurable |
@@ -277,6 +284,8 @@ Everything here is stored in `state.settings` and editable in **Settings**. Repl
 ---
 
 ## 8. Design system
+
+> **Since 2026-10-01: "Ledger green"** from Claude Design — tokens, type and component rules are in `docs/design/ledger-green/design_handoff_negroni_ledger_green/README.md` and implemented in `prototype/src/styles.css` (light + dark token sets; theme switch under Account & theme, default = device setting, saved per person). Design brief for future design work: `docs/design/DESIGN_HANDOFF.md`; screenshots: `npm run screens`. The notes below describe the earlier indigo system and are kept for history.
 
 Visual direction came from the owner's references: deep indigo panels, soft lavender background, white rounded cards, pill badges, clean data-dense dashboards.
 
@@ -515,6 +524,9 @@ interface Connector {
 | 2026-09-29 | Roles reduced to CEO, CTO, CMO, Finance / Accounting, Manager, Team Member (Owner / Board removed); CMO = same permissions as CTO; people: CEO Kim Sreyneang, CTO Snakeman, 1 CMO, 2 managers, 2 finance, 4 team members | Owner |
 | 2026-09-29 | With no Owner role: large project/contract rules become Finance → CEO, escalation role = Finance (placeholders) | Claude Code (owner to confirm) |
 | 2026-09-29 | App renamed **Negroni**; sample data reduced to one company (**Longevity project**) with one task, one project and one approval; finance, budgets, KPIs and documents regenerated for that company | Owner |
+| 2026-10-01 | Finance split into **Financial** (full finance + Financial System) and **Accounting** (books + operations); new **Investor** login that only sees the Financial Overview | Owner |
+| 2026-10-01 | Financial System inside the app (not a separate workspace); IFRS / SFRS(I) Singapore; Invictus Health chart of accounts drives the ledger; currency SGD | Owner |
+| 2026-10-01 | Financial Overview = 6 points (revenue, gross profit, operating costs, net profit, cash, runway); each point can carry "Please check" / "Need feedback" notes for CEO and/or Investor, with replies and "Mark done" | Owner (layout by Claude Code) |
 | 2026-09-28 | Runway = cash ÷ average monthly posted expenses (incl. capex and loan repayments) over the last N full months; `prototype/dist/` is not committed (build output) | Claude Code (placeholder, owner to confirm) |
 
 ---

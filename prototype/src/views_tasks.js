@@ -28,7 +28,15 @@ VIEWS.tasks = function () {
   const f = taskFilters(); const u = me();
   const ts = filteredTasks();
   const all = tasksInView();
-  let h = pageHead('Tasks', 'Workflow: assign → delegate → do the work → submit → manager review → completed. Every step is recorded.', can('tasks.create') ? '<button class="btn primary" data-act="new-task">' + icon('plus') + 'New task</button>' : '');
+  let h = pageHead('Tasks', 'Every step is recorded.', can('tasks.create') ? '<button class="btn primary" data-act="new-task">' + icon('plus') + 'New task</button>' : '');
+  const open = all.filter(t => t.status !== 'completed'); const week = open.filter(t => daysUntil(t.dueDate) >= 0 && daysUntil(t.dueDate) <= 7).sort((a, b) => a.dueDate < b.dueDate ? -1 : 1);
+  const od = all.filter(isOverdue).length, rev = all.filter(t => t.status === 'submitted').length;
+  h += '<div class="wf-strip"><b>Workflow</b>' + ['Assign', 'Delegate', 'Do the work', 'Submit', 'Manager review', 'Completed'].map((x, i) => '<span class="step"><i>' + (i + 1) + '</i>' + x + '</span>').join('<span class="step-arrow">→</span>') + '</div>';
+  h += '<div class="grid g4" style="margin-bottom:16px">' +
+    kpiTile('Open', String(open.length), '<span class="muted">' + open.filter(t => t.status === 'in_progress').length + ' in progress</span>', { hero: true, act: 'tf-quick', }) +
+    kpiTile('Due this week', String(week.length), '<span class="muted">' + (week.length ? 'Next: ' + fmtShort(week[0].dueDate) : 'Nothing due') + '</span>') +
+    kpiTile('Overdue', String(od), od ? '<span style="color:var(--bad)">' + od + ' past due</span>' : '<span style="color:var(--good);font-weight:600">All on schedule</span>') +
+    kpiTile('Awaiting review', String(rev), '<span class="muted">Submitted work</span>') + '</div>';
   const whoOpts = [['mine', 'Assigned to me'], ['created', 'Assigned by me'], ['review', 'To review']].concat(u.scope !== 'self' ? [['all', u.scope === 'department' ? 'My department' : 'All in scope']] : []);
   h += '<div class="filters">' + segEl([['list', icon('list').replace('<svg', '<svg width="15" height="15"') + ' List'], ['board', icon('board').replace('<svg', '<svg width="15" height="15"') + ' Board']], f.view, 'tf-view') +
     selectEl('tf-who', whoOpts, f.who, 'data-act-change="tf" data-k="who" aria-label="Whose tasks"') +
@@ -37,15 +45,15 @@ VIEWS.tasks = function () {
     selectEl('tf-project', [['all', 'All projects']].concat(projectsInView().map(p => [p.id, p.name])), f.project, 'data-act-change="tf" data-k="project" aria-label="Project"') +
     (f.view === 'list' ? selectEl('tf-status', [['open', 'Open'], ['overdue', 'Overdue'], ['all', 'All statuses']].concat(Object.entries(TASK_STATUS).map(([k, v]) => [k, v.label])), f.status, 'data-act-change="tf" data-k="status" aria-label="Status"') : '') +
     selectEl('tf-priority', [['all', 'Any priority']].concat(Object.entries(PRIORITY).map(([k, v]) => [k, v.label])), f.priority, 'data-act-change="tf" data-k="priority" aria-label="Priority"') + '</div>';
-  h += '<div class="row small muted" style="margin:-4px 0 12px">' + ts.length + ' shown · ' + all.filter(t => t.status !== 'completed').length + ' open · ' + all.filter(isOverdue).length + ' overdue · ' + all.filter(t => t.status === 'submitted').length + ' awaiting review</div>';
+  h += '<div class="row small muted" style="margin:-4px 0 12px;justify-content:flex-end">' + ts.length + ' shown · ' + all.filter(t => t.status !== 'completed').length + ' open · ' + all.filter(isOverdue).length + ' overdue · ' + all.filter(t => t.status === 'submitted').length + ' awaiting review</div>';
   if (f.view === 'board') h += taskBoard(ts);
   else h += card('', tableEl([
-    { h: 'Task', v: t => '<div class="row" style="flex-wrap:nowrap;gap:10px"><span class="mono muted">' + t.key + '</span><div style="min-width:0"><b>' + esc(t.title) + '</b>' + (t.recurrence ? ' <span class="tag" title="Recurring">' + icon('repeat').replace('<svg', '<svg width="11" height="11"') + ' ' + t.recurrence + '</span>' : '') + '<div class="muted small">' + esc(company(t.companyId).short) + (t.projectId ? ' · ' + esc(project(t.projectId).name) : '') + '</div></div></div>' },
+    { h: 'Task', v: t => '<div class="row" style="flex-wrap:nowrap;gap:12px"><span class="key-chip">' + t.key + '</span><div style="min-width:0"><b>' + esc(t.title) + '</b>' + (t.recurrence ? ' <span class="tag" title="Recurring">' + icon('repeat').replace('<svg', '<svg width="11" height="11"') + ' ' + t.recurrence + '</span>' : '') + '<div class="muted small">' + esc(company(t.companyId).short) + (t.projectId ? ' · ' + esc(project(t.projectId).name) : '') + '</div></div></div>' },
     { h: 'Assignee', v: t => person(t.assigneeId) },
     { h: 'Priority', v: t => prioBadge(t.priority) },
     { h: 'Status', v: t => taskStatusBadge(t) },
-    { h: 'Due', nowrap: 1, v: t => '<span class="' + (isOverdue(t) ? 'down strong' : '') + '">' + fmtShort(t.dueDate) + '</span>' },
-    { h: 'Progress', v: t => '<div style="width:90px">' + progressBar(t.status === 'completed' ? 100 : t.progress, t.status === 'completed' ? 'good' : '') + '</div>' },
+    { h: 'Due', nowrap: 1, v: t => '<span class="' + (isOverdue(t) ? 'down strong' : '') + '">' + fmtShort(t.dueDate) + '</span><div class="muted small">' + (t.status === 'completed' ? 'done' : daysUntil(t.dueDate) < 0 ? Math.abs(daysUntil(t.dueDate)) + ' days late' : daysUntil(t.dueDate) === 0 ? 'today' : 'in ' + daysUntil(t.dueDate) + ' day' + (daysUntil(t.dueDate) === 1 ? '' : 's')) + '</div>' },
+    { h: 'Progress', v: t => { const p = t.status === 'completed' ? 100 : t.progress; return '<div class="row" style="flex-wrap:nowrap;gap:10px"><div style="width:120px">' + progressBar(p, t.status === 'completed' ? 'good' : '') + '</div><span class="mono small">' + p + '%</span></div>'; } },
   ], ts, { rowAct: 'open-task', pageSize: 25, pageKey: 'tpg', empty: 'No tasks match these filters.' }), { cls: '', flush: true });
   return h;
 };
@@ -55,6 +63,7 @@ function taskBoard(ts) {
   return '<div class="board">' + cols.map(([c, l]) => { const items = ts.filter(t => inCol(t, c)); return '<div class="col" data-drop="' + c + '"><div class="col-h"><span>' + l + '</span><span class="tag">' + items.length + '</span></div>' + items.map(t => '<div class="tcard" draggable="true" data-drag="' + t.id + '" data-act="open-task" data-id="' + t.id + '"><div class="row" style="justify-content:space-between"><span class="mono muted">' + t.key + '</span>' + prioBadge(t.priority) + '</div><div class="tt">' + esc(t.title) + '</div>' + (t.status !== 'completed' && t.status !== 'todo' ? progressBar(t.progress) : '') + '<div class="foot"><span class="person">' + avatar(t.assigneeId, 'sm') + '<span>' + esc(user(t.assigneeId).name.split(' ')[0]) + '</span></span><span class="' + (isOverdue(t) ? 'down strong' : '') + '">' + (t.status === 'completed' ? 'Done' : dueLabel(t.dueDate)) + '</span></div>' + (['changes', 'blocked'].includes(t.status) ? taskStatusBadge(t) : '') + '</div>').join('') + (items.length ? '' : '<div class="muted small" style="padding:6px">Nothing here</div>') + '</div>'; }).join('') + '</div><p class="muted small">Drag a card to change status. Moving to “Awaiting review” opens the submit form; only the reviewer can move work to Completed.</p>';
 }
 Object.assign(ACT, {
+  'tf-quick': () => { const tf = taskFilters(); tf.status = 'open'; render(); },
   'tf-view': el => { taskFilters().view = el.dataset.v; render(); },
   'open-task': el => openDrawer('task', el.dataset.id),
   'new-task': el => openNewTask(el && el.dataset ? el.dataset : {}),
@@ -188,11 +197,10 @@ VIEWS.projects = function () {
   const counts = { active: ps.filter(p => p.status === 'active').length, proposed: ps.filter(p => p.status === 'proposed').length, on_hold: ps.filter(p => p.status === 'on_hold').length, completed: ps.filter(p => p.status === 'completed').length, all: ps.length };
   if (f.status !== 'all') ps = ps.filter(p => p.status === f.status);
   const showBudget = can('finance.view') || can('budget.view_own');
-  let h = pageHead('Projects', projectsInView().length + ' projects in your scope', can('projects.manage') ? '<button class="btn primary" data-act="new-project">' + icon('plus') + 'New project</button>' : '');
-  h += tabsEl([['active', 'Active', counts.active], ['proposed', 'Proposed', counts.proposed], ['on_hold', 'On hold', counts.on_hold], ['completed', 'Completed', counts.completed], ['all', 'All', counts.all]], f.status, 'pf-status');
-  h += '<div class="filters">' + segEl([['cards', 'Cards'], ['table', 'Table']], f.view, 'pf-view') + (activeCompanyIds().length > 1 ? selectEl('pf-company', companyOptions(null, true), f.company, 'data-act-change="pf" data-k="company" aria-label="Company"') : '') + '</div>';
+  let h = pageHead('Projects', projectsInView().length + ' project' + (projectsInView().length === 1 ? '' : 's') + ' in your scope', can('projects.manage') ? '<button class="btn primary" data-act="new-project">' + icon('plus') + 'New project</button>' : '');
+  h += '<div class="proj-bar">' + tabsEl([['active', 'Active', counts.active], ['proposed', 'Proposed', counts.proposed], ['on_hold', 'On hold', counts.on_hold], ['completed', 'Completed', counts.completed], ['all', 'All', counts.all]], f.status, 'pf-status') + '<span class="spacer"></span>' + (activeCompanyIds().length > 1 ? selectEl('pf-company', companyOptions(null, true), f.company, 'data-act-change="pf" data-k="company" aria-label="Company"') : '') + '<div class="tabs seg-tabs">' + [['cards', 'Cards'], ['table', 'Table']].map(([k, l]) => '<button class="' + (f.view === k ? 'on' : '') + '" data-act="pf-view" data-v="' + k + '">' + l + '</button>').join('') + '</div></div>';
   if (!ps.length) return h + card('', emptyState('No projects here.'));
-  if (f.view === 'cards') h += '<div class="grid g4">' + ps.map((p, i) => projectCard(p, i % 4 !== 0)).join('') + '</div>';
+  if (f.view === 'cards') { const sel = ps.find(p => p.id === f.sel) || ps[0]; h += '<div class="proj-split"><div class="stack">' + ps.map(p => projectCard(p, p.id !== sel.id, { sel: p.id === sel.id, act: 'pf-sel' })).join('') + '</div>' + projectPanel(sel) + '</div>'; }
   else h += card('', tableEl([
     { h: 'Project', v: p => '<b>' + esc(p.name) + '</b><div class="muted small">' + esc(company(p.companyId).short) + ' · ' + esc(dept(p.departmentId).name) + '</div>' },
     { h: 'Owner', v: p => person(p.ownerId) },
@@ -206,10 +214,34 @@ VIEWS.projects = function () {
 Object.assign(ACT, {
   'pf-status': el => { App.ui.pf.status = el.dataset.v; render(); },
   'pf-view': el => { App.ui.pf.view = el.dataset.v; render(); },
+  'pf-sel': el => { App.ui.pf.sel = el.dataset.id; render(); },
   'new-project': () => openNewProject(),
   'back-projects': () => go('projects'),
 });
 CHANGE.pf = el => { App.ui.pf[el.dataset.k] = el.value; render(); };
+// Detail panel beside the selected project card (Projects → Cards)
+function projectPanel(p) {
+  const s = projectStats(p); const showBudget = can('finance.view') || (can('budget.view_own') && (p.ownerId === me().id || deptTree(me().departmentId).includes(p.departmentId)));
+  const manage = can('projects.manage') && (p.ownerId === me().id || me().scope !== 'self');
+  const tasks = s.tasks.filter(visibleTask).sort((a, b) => (a.status === 'completed') - (b.status === 'completed') || (a.dueDate < b.dueDate ? -1 : 1));
+  const docs = state.documents.filter(d => d.linked && d.linked.type === 'project' && d.linked.id === p.id && (!d.confidential || can('finance.confidential')));
+  const risks = state.risks.filter(r => r.projectId === p.id);
+  const acts = state.audit.filter(a => a.entityId === p.id).slice(0, 3);
+  const team = uniq([p.ownerId].concat(p.members || []));
+  const tile = (l, v, sub, cls) => '<div class="tile"><div class="lbl">' + l + '</div><b>' + v + '</b>' + (sub ? '<div class="small ' + (cls || 'muted') + '">' + sub + '</div>' : '') + '</div>';
+  const emptyT = (t, sub) => '<div class="tile"><b style="font-size:14px">' + t + '</b><div class="muted small">' + sub + '</div></div>';
+  return '<section class="card proj-panel"><div class="card-b" style="padding-top:22px"><div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap;gap:14px"><div><h2 style="font-size:24px;letter-spacing:-.02em;font-weight:700">' + esc(p.name) + '</h2><div class="muted small" style="margin-top:4px">' + esc(company(p.companyId).name) + ' · ' + esc(dept(p.departmentId).name) + ' · Owner ' + esc(user(p.ownerId).name) + ' · ' + fmtShort(p.startDate) + ' → ' + fmtDate(p.dueDate) + '</div></div>' +
+    '<div class="row" style="flex-wrap:nowrap">' + (can('tasks.create') ? '<button class="btn" data-act="new-task" data-project="' + p.id + '">' + icon('plus') + 'Add task</button>' : '') + (manage ? selectEl('proj-status', Object.entries(PROJECT_STATUS).map(([k, v]) => [k, v[0]]), p.status, 'data-act-change="proj-status" data-id="' + p.id + '" aria-label="Project status"') : '') + '</div></div>' +
+    '<div class="row" style="margin:10px 0 16px">' + badge(PROJECT_STATUS[p.status][0], PROJECT_STATUS[p.status][1]) + badge(HEALTH[s.health][0], HEALTH[s.health][1]) + prioBadge(p.priority) + '</div>' +
+    '<div class="grid g4" style="gap:10px;margin-bottom:18px">' + tile('Progress', s.progress + '%') + tile('Tasks done', s.done + ' / ' + s.total, (s.total - s.done) + ' open') + tile('Overdue tasks', String(s.overdue), s.overdue ? 'Needs follow-up' : 'On schedule', s.overdue ? 'down' : 'up') +
+    (showBudget ? tile('Budget spent', p.budget ? money(s.spent, { compact: true }) : '—', p.budget ? pct(s.spent, p.budget) + '% of ' + money(p.budget, { compact: true }) : 'No budget set') : tile('Due', fmtShort(p.dueDate), dueLabel(p.dueDate))) + '</div>' +
+    '<div class="proj-cols"><div class="stack" style="gap:12px"><div><b>Tasks</b> <span class="muted small">· ' + tasks.length + ' visible to you</span></div>' +
+    (tasks.length ? tasks.slice(0, 5).map(t => '<div class="proj-task" data-act="open-task" data-id="' + t.id + '"><span class="key-chip">' + t.key + '</span><b class="grow">' + esc(t.title) + '</b><span class="small">' + esc(user(t.assigneeId).name) + '</span>' + taskStatusBadge(t) + '<span class="muted small nowrap">' + fmtShort(t.dueDate) + '</span></div>').join('') : emptyT('No tasks yet', 'Add the first task to start tracking.')) +
+    '<b>Documents</b>' + (docs.length ? docs.map(d => '<div class="file">' + icon('file') + '<div><b>' + esc(d.name) + '</b><div class="muted small">' + esc(user(d.uploadedBy).name) + ' · ' + fmtDate(d.at.slice(0, 10)) + '</div></div></div>').join('') : emptyT('No documents', 'Linked files appear here.')) +
+    '<div class="grid g2" style="gap:10px">' + (risks.length ? '<div class="tile"><b style="font-size:14px">Risks &amp; issues</b><div class="small">' + risks.length + ' open · ' + esc(risks[0].title) + '</div></div>' : emptyT('Risks &amp; issues', 'No risks logged.')) + (acts.length ? '<div class="tile"><b style="font-size:14px">Activity</b><div class="muted small">' + esc(acts[0].summary) + ' · ' + ago(acts[0].at) + '</div></div>' : emptyT('Activity', 'No recorded activity yet.')) + '</div></div>' +
+    '<div class="stack" style="gap:12px"><b>About</b><div class="small" style="line-height:1.55">' + esc(p.description || '—') + '</div><b>Team</b>' + team.map(id => { const x = user(id); return '<div class="person">' + avatar(x) + '<div><div class="strong small">' + esc(x.name) + '</div><div class="muted small">' + esc(x.title) + '</div></div></div>'; }).join('') +
+    '<button class="link" data-act="open" data-t="project" data-id="' + p.id + '">Open full project page →</button></div></div></div></section>';
+}
 function projectDetail(id) {
   const p = project(id);
   if (!p || !visibleProject(p)) return pageHead('Project not available', 'It may be outside your access scope.') + '<button class="btn" data-act="back-projects">' + icon('arrowL') + 'Back to projects</button>';

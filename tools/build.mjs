@@ -21,7 +21,7 @@ const fail = msg => { console.error('Build failed: ' + msg); process.exit(1); };
 
 // ORDER MATTERS: core → seed data → cloud storage → UI kit → views. views_misc.js boots the app, so it goes last.
 const JS = ['core.js', 'data.js', 'cloud.js', 'ui.js', 'views_dash.js', 'views_tasks.js', 'views_approvals.js',
-  'views_finance.js', 'views_org.js', 'views_reports.js', 'views_misc.js'];
+  'views_finance.js', 'views_org.js', 'views_reports.js', 'views_hub.js', 'views_misc.js'];
 
 const css = readFileSync(join(src, 'styles.css'), 'utf8');
 const js = JS.map(f => `/* ===== ${f} ===== */\n` + readFileSync(join(src, f), 'utf8')).join('\n');
@@ -55,7 +55,7 @@ const body = [
   '<title>Negroni</title>',
   '<meta name="description" content="Negroni — company management app (prototype)">',
   '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
-  '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">',
+  '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">',
   `<style>\n${css}\n</style>`,
   '<div id="app"></div><div id="drawer-root"></div><div id="modal-root"></div><div id="toasts" class="toast-wrap" aria-live="polite"></div>',
   '%%CLOUD%%',

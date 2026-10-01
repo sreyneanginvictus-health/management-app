@@ -4,7 +4,7 @@
 VIEWS.login = function () {
   const open = state.tasks.filter(t => t.status !== 'completed').length;
   const pend = state.approvals.filter(a => a.status === 'pending').length;
-  const demo = [['u_kim', 'CEO'], ['u_snakeman', 'CTO'], ['u_nadia', 'CMO'], ['u_sokha', 'Finance'], ['u_vannak', 'Manager'], ['u_ethan', 'Manager'], ['u_piseth', 'Team member'], ['u_mony', 'Team member']];
+  const demo = [['u_kim', 'CEO'], ['u_snakeman', 'CTO'], ['u_nadia', 'CMO'], ['u_sokha', 'Financial'], ['u_rachel', 'Accounting'], ['u_vannak', 'Manager'], ['u_mony', 'Team member'], ['u_daniel', 'Investor']];
   return '<div class="login"><section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Negroni</b><small>Management OS · prototype</small></div></div>' +
     '<div class="stack" style="gap:18px"><h1>One place to run the whole company.</h1><p>Tasks, approvals, finance, people and performance for Longevity project — each person sees only what their role allows.</p></div>' +
     '<div class="mini"><div><b>' + state.companies.length + '</b><small>' + (state.companies.length === 1 ? 'company' : 'companies') + '</small></div><div><b>' + state.users.length + '</b><small>people</small></div><div><b>' + open + '</b><small>open tasks</small></div><div><b>' + pend + '</b><small>requests in approval</small></div></div>' +
@@ -34,7 +34,7 @@ VIEWS.cloudScreen = function () {
   else if (S === 'error') form = '<div class="stack" style="gap:12px"><div class="eyebrow">Problem</div><h2 style="font-size:22px">We could not open the app</h2>' + noticeEl(esc(Cloud.error), 'bad', 'alert') +
     '<div class="row" style="gap:8px"><button class="btn primary" data-act="cloud-boot">Try again</button>' + (Cloud.user ? '<button class="btn" data-act="logout">' + icon('logout') + 'Sign out</button>' : '') + '</div></div>';
   else if (S === 'old-version') form = '<div class="stack" style="gap:12px"><div class="eyebrow">Workspace “' + esc(Cloud.ws ? Cloud.ws.name : '') + '”</div><h2 style="font-size:22px">Saved by an older version of the app</h2><p class="muted" style="margin:0">The app has changed how it stores data since this workspace was last saved.</p>' +
-    '<div class="row" style="gap:8px;flex-wrap:wrap">' + (Cloud.ws && Cloud.ws.role !== 'viewer' ? '<button class="btn primary" data-act="cloud-old" data-v="reset">' + icon('undo') + 'Reset to sample data</button>' : '') + '<button class="btn" data-act="cloud-old" data-v="keep">Keep (read-only)</button><button class="btn" data-act="logout">' + icon('logout') + 'Sign out</button></div></div>';
+    '<div class="row" style="gap:8px;flex-wrap:wrap">' + (Cloud.ws && Cloud.ws.role !== 'viewer' ? '<button class="btn primary" data-act="cloud-old" data-v="empty">' + icon('plus') + 'Start empty (real data)</button><button class="btn" data-act="cloud-old" data-v="reset">' + icon('undo') + 'Reset to sample data</button>' : '') + '<button class="btn" data-act="cloud-old" data-v="keep">Keep (read-only)</button><button class="btn" data-act="logout">' + icon('logout') + 'Sign out</button></div></div>';
   else if (S === 'recovery') form = '<div><div class="eyebrow">Reset password</div><h2 style="font-size:24px;margin-top:4px">Choose a new password</h2></div>' +
     '<form id="auth-form" class="stack" style="gap:12px" onsubmit="event.preventDefault();ACT[\'auth-newpass\']()">' + input('auth-pass', 'New password', 'password', 'new-password', '') + input('auth-pass2', 'Repeat new password', 'password', 'new-password') +
     '<button class="btn primary" type="submit">Save password and continue</button>' + msg + '</form>';
@@ -136,9 +136,14 @@ function deadlinesList(tasks, days, limit) {
   const up = tasks.filter(t => t.status !== 'completed' && daysUntil(t.dueDate) <= days).sort((a, b) => a.dueDate < b.dueDate ? -1 : 1).slice(0, limit || 7);
   return up.length ? '<div class="list">' + up.map(t => taskRow(t, { showAssignee: true })).join('') + '</div>' : emptyState('No deadlines in the next ' + days + ' days.');
 }
-function projectCard(p, alt) {
-  const st = projectStats(p); const [hl] = HEALTH[st.health];
-  return '<button class="pcard ' + (alt ? 'alt' : '') + '" data-act="open" data-t="project" data-id="' + p.id + '"><div class="p-top"><span>' + esc(company(p.companyId).short) + '</span><span>' + fmtShort(p.dueDate) + '</span></div><h4>' + esc(p.name) + '</h4><div class="p-bot"><div class="row" style="justify-content:space-between"><span>Progress · ' + hl + '</span><b class="num">' + st.progress + '%</b></div>' + progressBar(st.progress) + '</div></button>';
+function projectCard(p, alt, opt) {
+  opt = opt || {};
+  const st = projectStats(p); const [hl, hc] = HEALTH[st.health];
+  const team = uniq([p.ownerId].concat(p.members || [])).length;
+  return '<button class="pcard ' + (alt ? 'alt' : '') + (opt.sel ? ' sel' : '') + '" data-act="' + (opt.act || 'open') + '" data-t="project" data-id="' + p.id + '"><div class="p-top"><span>' + esc(company(p.companyId).short) + '</span><span>Due ' + fmtShort(p.dueDate) + '</span></div><h4>' + esc(p.name) + '</h4>' +
+    '<div class="row">' + badge(hl, st.health === 'on_track' ? 'b-good' : hc) + prioBadge(p.priority) + '</div>' +
+    '<div class="p-bot"><div class="row" style="justify-content:space-between"><span>Progress</span><b class="num">' + st.progress + '%</b></div>' + progressBar(st.progress) +
+    '<div class="p-tiles"><div>Tasks<b>' + st.done + ' / ' + st.total + '</b></div><div>Budget<b>' + (p.budget ? pct(st.spent, p.budget) + '%' : '—') + '</b></div><div>Team<b>' + team + '</b></div></div></div></button>';
 }
 function alertsFor(ids) {
   const out = [];
@@ -191,7 +196,7 @@ function financeTiles(ids) {
   const cash = cashPosition(ids); const cash30 = cashPosition(ids, rel(-30));
   return kpiTile('Revenue YTD', money(p.revenue, { compact: true }), deltaTxt(p.revenue, lp.revenue, false, 'vs same period ' + (CUR_YEAR - 1)), { hero: true, icon: 'chart', act: 'go-finance' }) +
     kpiTile('Expenses YTD', money(p.expenses, { compact: true }), deltaTxt(p.expenses, lp.expenses, true, 'vs ' + (CUR_YEAR - 1)), { icon: 'coins', act: 'go-finance' }) +
-    kpiTile('Net profit YTD', money(p.net, { compact: true }), '<span class="' + (p.net >= 0 ? 'up' : 'down') + '">' + fmtPct(p.revenue ? p.net / p.revenue * 100 : 0, 1) + ' margin</span> <span class="muted">· ' + money(lp.net, { compact: true }) + ' last year</span>', { icon: 'target', act: 'go-finance' }) +
+    kpiTile('Net profit YTD', money(p.net, { compact: true }), '<span class="' + (p.net >= 0 ? 'up' : 'down') + '">' + fmtPct(p.revenue ? p.net / p.revenue * 100 : 0, 1) + ' margin</span> <span class="muted">' + money(lp.net, { compact: true }) + ' last year</span>', { icon: 'target', act: 'go-finance' }) +
     kpiTile('Cash position', money(cash, { compact: true }), deltaTxt(cash, cash30, false, 'vs 30 days ago'), { icon: 'dollar', act: 'go-cash' });
 }
 ACT['go-finance'] = () => { App.ui.finTab = 'statements'; go('finance'); };
@@ -206,28 +211,80 @@ VIEWS.dashboard = function () {
   const r = me().role;
   if (r === 'ceo') return dashExec();
   if (r === 'cto' || r === 'cmo') return dashCto();
-  if (r === 'finance') return dashFinance();
+  if (r === 'financial' || r === 'accounting') return dashFinance();
+  if (r === 'investor') return VIEWS.overview();
   if (r === 'manager') return dashManager();
   return dashMember();
 };
 function dashExec() {
-  const u = me(); const ids = activeCompanyIds();
+  const u = me(); const ids = activeCompanyIds(); const fin = can('finance.view');
   const tasks = state.tasks.filter(t => ids.includes(t.companyId));
   const projs = state.projects.filter(p => ids.includes(p.companyId) && p.status !== 'completed');
   const queue = reviewQueue();
   let h = pageHead(greeting() + ', ' + esc(u.name.replace(/^Dr\. /, '').split(' ')[0]), fmtDate(TODAY_S) + ' · ' + esc(scopeName()), quickActions());
-  if (can('finance.view')) h += '<div class="grid g4" style="margin-bottom:16px">' + financeTiles(ids) + '</div>';
-  else h += '<div class="grid g4" style="margin-bottom:16px">' + workTiles(tasks, projs) + '</div>';
-  h += '<div class="grid g-2-1" style="margin-bottom:16px">' +
-    (can('finance.view') ? card('Revenue vs expenses', revExpChart(ids), { sub: 'Last 12 months · posted transactions', actions: '<button class="btn sm ghost" data-act="go-finance">Statements ' + icon('arrowR') + '</button>' }) : card('Work completed', weeklyThroughput(tasks), { sub: 'Tasks approved per week' })) +
-    card('Needs your decision', queue.length ? '<div class="list">' + queue.slice(0, 6).map(x => x.html).join('') + '</div>' : emptyState('Nothing is waiting on you.'), { flush: true, sub: queue.length + ' waiting', actions: '<button class="btn sm ghost" data-act="nav" data-page="approvals">Approval Center ' + icon('arrowR') + '</button>' }) + '</div>';
-  h += companyPerfCard(ids);
-  h += '<div class="grid g3" style="margin:16px 0">' +
-    card('Projects needing attention', (() => { const risky = projs.map(p => [p, projectStats(p)]).filter(([, s]) => s.health !== 'on_track').slice(0, 6); return risky.length ? '<div class="list">' + risky.map(([p, s]) => '<div class="li clickable" data-act="open" data-t="project" data-id="' + p.id + '"><div class="grow"><div class="ttl">' + esc(p.name) + '</div><div class="meta">' + esc(company(p.companyId).short) + ' · ' + s.overdue + ' overdue · due ' + fmtShort(p.dueDate) + '</div></div>' + badge(HEALTH[s.health][0], HEALTH[s.health][1]) + '</div>').join('') + '</div>' : emptyState('All projects on track.'); })(), { flush: true }) +
-    card('Upcoming deadlines', deadlinesList(tasks.filter(t => ['critical', 'high'].includes(t.priority) || t.assigneeId === u.id), 14, 6), { flush: true, sub: 'High-priority work, next 14 days' }) +
-    card('Risks & alerts', alertsList(alertsFor(ids)), { flush: true }) + '</div>';
-  h += '<div class="grid g2">' + card('Department performance', deptPerfBars(ids), { sub: 'On-time completion, last 6 months' }) + card('Work status across the group', taskStatusMix(tasks) + '<div class="hr"></div>' + (can('finance.view') ? budgetSummary(ids) : ''), { sub: tasks.filter(t => t.status !== 'completed').length + ' open tasks' }) + '</div>';
+  // KPIs (2×2) beside revenue by stream (finance only)
+  h += '<div class="dash-top"><div class="grid kpi-2x2">' + (fin ? financeTiles(ids) : workTiles(tasks, projs)) + '</div>' + (fin ? revenueStreamsCard(ids) : decisionCard(queue)) + '</div>';
+  // progress tracking beside decisions + alerts
+  h += '<div class="dash-mid">' + progressCard(ids, tasks, projs) + '<div class="stack">' + (fin ? decisionCard(queue) : '') + card('Risks & alerts', alertsList(alertsFor(ids)), { flush: true }) + '</div></div>';
+  h += '<div class="grid g3">' + companyTilesCard(ids) + card('Upcoming deadlines', deadlineBlocks(tasks.filter(t => ['critical', 'high'].includes(t.priority) || t.assigneeId === u.id), 14, 4), { sub: 'High-priority work, next 14 days' }) + (fin ? budgetCard(ids, tasks) : card('Work status', taskStatusMix(tasks), { sub: tasks.filter(t => t.status !== 'completed').length + ' open tasks' })) + '</div>';
   return h;
+}
+function decisionCard(queue) {
+  return card('Needs your decision', queue.length ? '<div class="list">' + queue.slice(0, 5).map(x => x.html).join('') + '</div>' : '<div style="padding:0 22px 6px"><div class="empty-tile"><span class="ico-box good">' + icon('ok') + '</span><div><b>Nothing is waiting on you</b><small>0 waiting</small></div></div></div>',
+    { flush: true, sub: queue.length ? queue.length + ' waiting' : '', actions: '<button class="link" data-act="nav" data-page="approvals">Approval Center →</button>' });
+}
+function revenueStreamsCard(ids) {
+  const [f, t] = ytdRange(); const p = pnl(ids, f, t);
+  const cols = ['var(--s1)', 'var(--s3)', 'var(--s2)', 'var(--s4)'];
+  const segs = Object.entries(p.rev).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ label: k.replace(/^Revenue - /, ''), value: v, color: cols[i % cols.length] }));
+  if (!segs.length) return card('Revenue by stream', emptyState('No revenue yet this year.'), { sub: 'Year to date' });
+  return card('Revenue by stream', '<div class="donut-wrap">' + donutChart(segs, 180) + '<div class="mid"><b>' + money(p.revenue, { compact: true }) + '</b><small>' + segs.length + ' stream' + (segs.length > 1 ? 's' : '') + '</small></div></div>' +
+    '<div class="legend-rows">' + segs.map(s => '<div><i style="background:' + s.color + '"></i><span>' + esc(s.label) + '</span><span class="num">' + money(s.value, { compact: true }) + '</span><span class="muted">' + fmtPct(s.value / p.revenue * 100, 1) + '</span></div>').join('') + '</div>',
+    { sub: 'Year to date', actions: '<span class="tag">From Finance</span>' });
+}
+function progressCard(ids, tasks, projs) {
+  const active = projs.filter(p => p.status === 'active').slice(0, 2);
+  const projHtml = active.length ? active.map(p => {
+    const s = projectStats(p); const span = daysUntil(p.dueDate) - daysUntil(p.startDate); const el = span > 0 ? clamp(Math.round(-daysUntil(p.startDate) / span * 100), 0, 100) : 100;
+    return '<div class="pt-proj" data-act="open" data-t="project" data-id="' + p.id + '"><div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><div><b>' + esc(p.name) + '</b><div class="muted small">' + esc(user(p.ownerId).name) + ' · ' + fmtShort(p.startDate) + ' → ' + fmtDate(p.dueDate) + '</div></div><div class="row" style="flex-wrap:nowrap">' + badge(HEALTH[s.health][0], HEALTH[s.health][1]) + '<span class="pt-pct">' + s.progress + '%</span></div></div>' +
+      '<div class="progress" style="margin:12px 0 8px"><i style="width:' + s.progress + '%"></i><span class="mark" style="left:' + el + '%"></span></div>' +
+      '<div class="row muted small" style="justify-content:space-between"><span>Marker = ' + el + '% of timeline elapsed</span><span>Tasks ' + s.done + ' / ' + s.total + (p.budget ? ' · Budget ' + pct(s.spent, p.budget) + '% of ' + money(p.budget, { compact: true }) : '') + '</span></div></div>';
+  }).join('') : emptyState('No active projects.');
+  const open = tasks.filter(t => t.status !== 'completed');
+  const st = [['todo', 'To do'], ['in_progress', 'In progress'], ['submitted', 'Awaiting review'], ['changes', 'Changes requested'], ['blocked', 'Blocked']];
+  const mx = Math.max(1, ...st.map(([k]) => open.filter(t => t.status === k).length));
+  const pipe = '<div class="pt-col"><div class="row" style="justify-content:space-between"><b>Task pipeline</b><span class="muted small">' + open.length + ' open · ' + open.filter(isOverdue).length + ' overdue</span></div>' +
+    st.map(([k, l]) => { const n = open.filter(t => t.status === k).length; return '<div class="pt-row"><span' + (k === 'in_progress' && n ? ' style="color:var(--info)"' : '') + '>' + l + '</span><div class="progress"><i style="width:' + (n / mx * 100) + '%;background:' + (k === 'blocked' ? 'var(--danger)' : k === 'changes' ? '#B57E14' : 'var(--info)') + '"></i></div><span class="num mono">' + n + '</span></div>'; }).join('') + '</div>';
+  const ks = state.kpis.filter(k => ids.includes(k.companyId));
+  const kp = '<div class="pt-col"><div class="row" style="justify-content:space-between"><b>KPIs vs target</b><span class="muted small">' + ks.filter(k => kpiStatus(k) === 'good').length + ' / ' + ks.length + ' on target</span></div>' +
+    (ks.length ? ks.slice(0, 4).map(k => { const v = k.values[k.values.length - 1]; const st = kpiStatus(k); const w = k.direction === 'down' ? Math.min(100, k.target / v * 100) : Math.min(100, v / k.target * 100); return '<div class="pt-kpi"><div class="row" style="justify-content:space-between"><span>' + esc(k.name) + '</span><span class="mono">' + esc(fmtKpi(k, v)) + ' / ' + esc(fmtKpi(k, k.target)) + '</span></div><div class="progress ' + (st === 'good' ? 'good' : st === 'warn' ? 'warn' : 'bad') + '"><i style="width:' + w + '%"></i></div></div>'; }).join('') : emptyState('No KPIs yet.')) + '</div>';
+  return card('Progress tracking', '<div class="stack" style="gap:18px">' + projHtml + '<div class="grid g2">' + pipe + kp + '</div></div>', { sub: 'Projects, tasks and KPIs across the holding', actions: can('projects.view') ? '<button class="btn sm" data-act="nav" data-page="projects">Projects →</button>' : '' });
+}
+function companyTilesCard(ids) {
+  const [f, t] = ytdRange(); const fin = can('finance.view');
+  return card('Company performance', ids.map(company).map(c => {
+    const p = fin ? pnl([c.id], f, t) : null; const br = fin ? budgetRows([c.id], CUR_YEAR) : [];
+    const ts = state.tasks.filter(x => x.companyId === c.id && x.status !== 'completed'); const ps = state.projects.filter(x => x.companyId === c.id && x.status === 'active').map(projectStats);
+    const ks = state.kpis.filter(k => k.companyId === c.id); const tile = (l, v, cls) => '<div class="tile"><div class="lbl">' + l + '</div><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b></div>';
+    const tiles = (fin ? [tile('Margin', p.revenue ? fmtPct(p.net / p.revenue * 100, 1) : '—', p.net < 0 ? 'down' : ''), tile('Budget used', br.length ? pct(sum(br, x => x.actual), sum(br, x => x.amount)) + '%' : '—'), tile('KPIs on target', ks.filter(k => kpiStatus(k) === 'good').length + ' / ' + ks.length), tile('Net profit', money(p.net, { compact: true }), p.net < 0 ? 'down' : '')] : [tile('KPIs on target', ks.filter(k => kpiStatus(k) === 'good').length + ' / ' + ks.length)])
+      .concat([tile('Projects', ps.length), tile('Open / overdue', ts.length + ' / ' + ts.filter(isOverdue).length)]);
+    const risky = ps.filter(s => s.health !== 'on_track').length;
+    return '<div class="stack" style="gap:12px" data-act="open-company" data-id="' + c.id + '"><div class="row"><i style="width:9px;height:9px;border-radius:50%;background:var(--brand)"></i><b>' + esc(c.name) + '</b></div><div class="tiles-3">' + tiles.join('') + '</div><div class="row small">' + icon('ok').replace('<svg', '<svg width="16" height="16" style="color:var(--brand-2)"') + '<b>Projects:</b> ' + (risky ? risky + ' need attention' : 'all on track') + '</div></div>';
+  }).join('<div class="hr"></div>'), { actions: can('reports.view') ? '<button class="link" data-act="nav" data-page="reports">Reports →</button>' : '' });
+}
+function deadlineBlocks(tasks, days, limit) {
+  const list = tasks.filter(t => t.status !== 'completed' && daysUntil(t.dueDate) <= days).sort((a, b) => a.dueDate < b.dueDate ? -1 : 1).slice(0, limit);
+  if (!list.length) return emptyState('Nothing due in the next ' + days + ' days.');
+  return '<div class="stack" style="gap:14px">' + list.map(t => { const d = parseD(t.dueDate); return '<div class="dl-row" data-act="open" data-t="task" data-id="' + t.id + '"><div class="date-block"><small>' + MONTHS[d.getMonth()].toUpperCase() + '</small><b>' + d.getDate() + '</b></div><div class="grow"><b>' + esc(t.title) + '</b><div class="muted small">' + esc(user(t.assigneeId).name) + ' · ' + esc(dueLabel(t.dueDate)) + '</div><div class="row" style="margin-top:6px">' + badge(TASK_STATUS[t.status].label, TASK_STATUS[t.status].cls) + badge(titleCase(t.priority), { critical: 'b-bad', high: 'b-warn', medium: 'b-info', low: '' }[t.priority]) + '</div></div></div>'; }).join('') + '</div>';
+}
+function budgetCard(ids, tasks) {
+  const rows = budgetRows(ids, CUR_YEAR); const b = sum(rows, r => r.amount), a = sum(rows, r => r.actual);
+  const elapsed = Math.round((CUR_MONTH + TODAY.getDate() / 31) / 12 * 100); const used = pct(a, b);
+  const open = tasks.filter(t => t.status !== 'completed');
+  return card('Budget used ' + CUR_YEAR, '<div class="ov-val" style="margin-bottom:12px">' + used + '%</div><div class="progress" style="height:10px"><i style="width:' + Math.min(100, used) + '%"></i><span class="mark" style="left:' + elapsed + '%"></span></div>' +
+    '<div class="muted small" style="margin:8px 0 6px">Marker = ' + elapsed + '% of year elapsed · ' + rows.filter(r => r.util >= state.settings.budgetAlertPct).length + ' line' + (rows.filter(r => r.util >= state.settings.budgetAlertPct).length === 1 ? '' : 's') + ' over the ' + state.settings.budgetAlertPct + '% alert</div>' + cfg() +
+    '<div class="hr"></div><div class="small">Work: <b>' + open.length + ' open task' + (open.length === 1 ? '' : 's') + '</b> · ' + open.filter(t => t.status === 'in_progress').length + ' in progress · ' + open.filter(t => t.status === 'blocked').length + ' blocked</div>',
+    { actions: '<span class="mono small">' + money(a, { compact: true }) + ' / ' + money(b, { compact: true }) + '</span>' });
 }
 function workTiles(tasks, projs) {
   const open = tasks.filter(t => t.status !== 'completed');
@@ -249,12 +306,12 @@ function weeklyThroughput(tasks) {
   return barChart({ labels, series: [{ name: 'On time', color: 'var(--s1)', values: vals }, { name: 'Late', color: 'var(--s2)', values: late }], stacked: true, fmt: v => String(Math.round(v)), tipTitle: i => 'Week of ' + labels[i], aria: 'Tasks completed per week' });
 }
 function taskStatusMix(tasks) {
-  const cols = { todo: 'var(--line-2)', in_progress: 'var(--s4)', submitted: 'var(--s1)', changes: 'var(--s2)', blocked: 'var(--bad)' };
+  const cols = { todo: 'var(--line-2)', in_progress: 'var(--info)', submitted: 'var(--brand-2)', changes: '#B57E14', blocked: 'var(--danger)' };
   return stackBarEl(Object.keys(cols).map(k => ({ label: TASK_STATUS[k].label, value: tasks.filter(t => t.status === k).length, color: cols[k] })));
 }
 function deptPerfBars(ids, deptIds) {
   const rows = deptPerformance(ids, deptIds).filter(r => r.onTime != null).sort((a, b) => b.onTime - a.onTime).slice(0, 8);
-  if (!rows.length) return emptyState('Not enough completed work yet.');
+  if (!rows.length) return '<div class="empty-tile"><span class="ico-box">' + icon('clock') + '</span><div><b>Not enough completed work yet</b><small>Rates appear once tasks are reviewed and completed.</small></div></div>';
   return hbars(rows.map(r => ({ label: r.name, sub: company(r.company).short + ' · ' + r.done + ' done · ' + r.overdue + ' overdue', value: r.onTime, color: companyColor(r.company) })), { fmt: v => fmtPct(v), name: 'On-time rate' });
 }
 function budgetSummary(ids) {
@@ -358,8 +415,13 @@ ACT['nav-approvals'] = () => go('approvals');
 ACT['open-person'] = el => openDrawer('person', el.dataset.id);
 function kpiMini(ks) {
   if (!ks.length) return emptyState('No KPIs defined for this company.');
-  const col = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' };
-  return '<div class="list">' + ks.map(k => { const st = kpiStatus(k); const v = k.values[k.values.length - 1]; return '<div class="li"><div class="grow"><div class="ttl">' + esc(k.name) + '</div><div class="meta">Target ' + fmtKpi(k, k.target) + '</div></div>' + sparkline(k.values, col[st], 80, 26) + '<div style="text-align:right;min-width:74px"><div class="strong num">' + fmtKpi(k, v) + '</div>' + badge(st === 'good' ? 'On target' : st === 'warn' ? 'Near' : 'Off', st === 'good' ? 'b-good' : st === 'warn' ? 'b-warn' : 'b-bad') + '</div></div>'; }).join('') + '</div>';
+  const col = { good: 'var(--brand-2)', warn: '#B57E14', bad: 'var(--danger)' };
+  return '<div class="list">' + ks.map(k => {
+    const st = kpiStatus(k); const v = k.values[k.values.length - 1];
+    const w = k.direction === 'down' ? Math.min(100, k.target / v * 100) : Math.min(100, v / k.target * 100);
+    return '<div class="li kpi-row"><div class="grow"><div class="ttl">' + esc(k.name) + '</div><div class="meta">Target ' + fmtKpi(k, k.target) + '</div><div class="progress" style="margin-top:8px;height:6px"><i style="width:' + w + '%;background:' + col[st] + '"></i></div></div>' +
+      sparkline(k.values, col[st], 100, 28) + '<div style="text-align:right;min-width:74px"><div class="kpi-row-val">' + fmtKpi(k, v) + '</div>' + badge(st === 'good' ? 'On target' : st === 'warn' ? 'Near' : 'Off', st === 'good' ? 'b-good' : st === 'warn' ? 'b-warn' : 'b-bad') + '</div></div>';
+  }).join('') + '</div>';
 }
 
 function dashMember() {

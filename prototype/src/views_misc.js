@@ -111,7 +111,7 @@ VIEWS.settings = function () {
   const tabs = [['profile', 'My profile']];
   if (admin) tabs.push(['rules', 'Approval rules'], ['business', 'Business rules'], ['roles', 'Roles & permissions']);
   if (can('audit.view')) tabs.push(['audit', 'Audit log']);
-  tabs.push(['system', 'System & data']);
+  if (me().role !== 'investor') tabs.push(['system', 'System & data']);
   let tab = App.ui.setTab || 'profile'; if (!tabs.some(t => t[0] === tab)) tab = 'profile';
   let h = pageHead('Settings', admin ? 'Business rules are data, not code — change them here without a release.' : 'Your profile and preferences');
   h += tabsEl(tabs, tab, 'set-tab');
@@ -254,20 +254,25 @@ function setSystem() {
   const intro = Cloud.ws
     ? '<p style="margin-top:0">This workspace is saved in the cloud (' + size + ' KB). Resetting replaces everything in “' + esc(Cloud.ws.name) + '” with the original sample data, for every member.</p>'
     : '<p style="margin-top:0">This prototype runs entirely in your browser. Changes you make (tasks, approvals, postings, settings) are saved in this browser only (' + size + ' KB). Other people do not see them.</p>';
-  return (Cloud.ws ? setWorkspace() + '<div style="height:16px"></div>' : '') + '<div class="grid g2">' + card(Cloud.ws ? 'Sample data' : 'Demo data', intro + (ro ? '' : App.ui.confirmReset ? '<div class="action-bar"><span class="small" style="flex:1">Reset all data to the original sample? Your changes will be lost.</span><button class="btn" data-act="reset-cancel">Cancel</button><button class="btn danger solid" data-act="reset-go">Reset data</button></div>' : '<button class="btn danger" data-act="reset-ask">' + icon('undo') + 'Reset sample data</button>')) +
+  return (Cloud.ws ? setWorkspace() + '<div style="height:16px"></div>' : '') + '<div class="grid g2">' + card(Cloud.ws ? 'Sample data' : 'Demo data', intro + (ro ? '' : App.ui.confirmReset ? '<div class="action-bar"><span class="small" style="flex:1">Reset all data to the original sample? Your changes will be lost.</span><button class="btn" data-act="reset-cancel">Cancel</button><button class="btn danger solid" data-act="reset-go">Reset data</button></div>'
+      : App.ui.confirmClear ? '<div class="action-bar"><span class="small" style="flex:1">Remove all sample tasks, projects, approvals, finance, KPIs, documents and history? People, roles, the chart of accounts and settings stay. This can’t be undone (you can reload sample data later).</span><button class="btn" data-act="reset-cancel">Cancel</button><button class="btn danger solid" data-act="clear-go">Clear sample data</button></div>'
+      : '<div class="row"><button class="btn danger" data-act="clear-ask">' + icon('x') + 'Clear sample data (start empty)</button><button class="btn" data-act="reset-ask">' + icon('undo') + 'Reset to sample data</button></div>')) +
     card('Architecture notes', '<ul style="margin:0;padding-left:18px;line-height:1.7"><li>One normalized data model: companies, departments, users, roles, tasks, projects, approvals, transactions, accounts, invoices, bills, budgets, KPIs, risks, documents, notifications, audit.</li><li>Workflow engines (tasks, approvals, ledger) are separate from screens, ready to move behind an API.</li><li>Approval routing, thresholds, permissions and alerts are configuration, not code.</li><li>Ledger is append-only after posting: reversals and adjustments, never edits.</li><li>Planned next: server + real authentication, email/Slack notifications, accrual accounting and intercompany eliminations, multi-currency, mobile app, AI assistants for summaries and anomaly checks.</li></ul>') + '</div>';
 }
 Object.assign(ACT, {
-  'reset-ask': () => { App.ui.confirmReset = true; render(); }, 'reset-cancel': () => { App.ui.confirmReset = false; render(); },
+  'reset-ask': () => { App.ui.confirmReset = true; App.ui.confirmClear = false; render(); }, 'reset-cancel': () => { App.ui.confirmReset = false; App.ui.confirmClear = false; render(); },
+  'clear-ask': () => { App.ui.confirmClear = true; App.ui.confirmReset = false; render(); },
+  'clear-go': () => { clearSampleData(); App.ui = { setTab: 'system' }; render(); toast('Sample data cleared — ready for your real data'); },
   'reset-go': () => { const uidNow = state.session.userId; resetState(); App.ui = {}; state.session.userId = uidNow; App.ui.setTab = 'system'; render(); toast('Sample data restored'); },
 });
 
 /* ---------- boot ---------- */
 // Demo mode: load from this browser and render. Cloud mode: sign in → open a workspace (async).
 (function boot() {
-  try { const t = localStorage.getItem('northstar-theme'); if (t) applyTheme(t); } catch (e) { }
   bindEvents();
+  loadTheme();
   if (Cloud.enabled) { cloudBoot(); return; }
   state = loadState();
+  loadTheme();
   render();
 })();
