@@ -2,6 +2,15 @@
 
 Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 
+## 2026-10-01 · Claude Code — Financial System, Financial / Accounting / Investor roles, Financial Overview (branch `feat/finance-hub`)
+- **Roles:** "Finance / Accounting" split into **Financial** (all finance, the new Financial System, overview notes) and **Accounting** (transactions, invoices, bills, bank, budgets, operations — no Financial System). New **Investor** role: sees only the Financial Overview, notifications and own profile. Sample people: Sokha Lim = Financial, Rachel Tan = Accounting, Daniel Ong = Investor (sample). The "Finance" approval step now goes to the Financial position.
+- **Financial System** (sidebar → Financial System, Financial only): IFRS / SFRS(I) statements from the ledger — profit or loss by nature (to EBITDA, EBIT, PBT, estimated tax), financial position (with check = 0), cash flows (IAS 7, indirect); the **Invictus Health chart of accounts** (4100–9100 + balance-sheet accounts) with IFRS line and GST code, add-account form; **Tax & GST** (Singapore CIT with start-up / partial exemption, GST registration test and F5 estimate); **Assumptions** (all rates editable, audited).
+- **Financial Overview** (sidebar → Financial Overview; CEO, Financial, Investor): six short points — revenue, gross profit, operating costs, net profit, cash, runway — each with value, change vs previous period and one plain sentence; periods last month / this month / quarter / year to date; 12-month chart. On any point the Financial position can send a **"Please check" or "Need feedback" note** to CEO and/or Investor → they get a notification, can reply and mark it done. Notes are audited.
+- Sample data rebuilt on the Invictus accounts, currency **SGD**, company country Singapore. `VERSION` 6 → 7 (state has `coa` and `reportNotes`).
+- Tests: access per role, statements tie to the ledger, tax examples, note flow end to end. All green.
+- Not yet: real opening balances, accruals (ledger is still cash basis), capital allowances in tax, importing figures from the Excel model (it is mostly empty today), server-side enforcement of the Investor role (cloud workspace roles are still owner/editor/viewer).
+- **Next:** owner reviews in the preview, then merge to `main`.
+
 ## 2026-09-29 · Claude Code — Negroni, one company (branch `feat/negroni-one-company`, on top of `feat/roles-people`)
 - **App name → Negroni** (page title, sidebar, sign-in screens, sample emails @negroni.example). Subtitle "Holding OS" → "Management OS" since there is now one company. Internal browser-storage keys and the `northstar.html` Artifact file name are unchanged so saved sessions keep working.
 - **Companies:** the five Northstar companies are gone; the only company is **Longevity project** (5 departments: Executive Office, Finance, Technology, Marketing, Operations & Programs). The 11 people moved into it.

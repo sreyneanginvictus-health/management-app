@@ -37,8 +37,8 @@ for (const u of users) {
 }
 
 // 1b) Roster and roles (owner request 2026-09-29): CEO, CTO, CMO, Finance, Manager, Team Member only.
-ok((await E('ROLE_KEYS.join()')) === 'ceo,cto,cmo,finance,manager,member', 'role list');
-ok((await E("JSON.stringify(state.users.map(u => u.role).sort())")) === JSON.stringify(['ceo', 'cmo', 'cto', 'finance', 'finance', 'manager', 'manager', 'member', 'member', 'member', 'member']), 'headcount per role');
+ok((await E('ROLE_KEYS.join()')) === 'ceo,cto,cmo,financial,accounting,manager,member,investor', 'role list');
+ok((await E("JSON.stringify(state.users.map(u => u.role).sort())")) === JSON.stringify(['accounting', 'ceo', 'cmo', 'cto', 'financial', 'investor', 'manager', 'manager', 'member', 'member', 'member', 'member']), 'headcount per role');
 ok((await E("state.users.filter(u => u.role === 'ceo').map(u => u.name).join()")) === 'Kim Sreyneang', 'CEO is Kim Sreyneang');
 ok((await E("state.users.filter(u => u.role === 'cto').map(u => u.name).join()")) === 'Snakeman', 'CTO is Snakeman');
 ok(await E("state.roles.cmo.perms.slice().sort().join() === state.roles.cto.perms.slice().sort().join()"), 'CMO has the same permissions as CTO');
@@ -51,6 +51,35 @@ ok((await E('state.companies.map(c => c.name).join()')) === 'Longevity project',
 ok((await E('[state.tasks.length, state.projects.length, state.approvals.length].join()')) === '1,1,1', 'one task, one project, one approval');
 ok((await pg.title()) === 'Negroni', 'page title is Negroni');
 ok((await pg.innerText('.sidebar .brand')).includes('Negroni'), 'app name in sidebar');
+
+// 1d) Financial vs Accounting vs Investor access (owner request 2026-10-01).
+await E("login('u_sokha')");
+ok(await E("pageAllowed('hub') && pageAllowed('overview') && pageAllowed('finance') && can('fhub.manage')"), 'Financial: Financial System + overview + finance');
+await E("login('u_rachel')");
+ok(await E("pageAllowed('finance') && pageAllowed('operations') && can('finance.manage')"), 'Accounting: finance + operations');
+ok(!(await E("pageAllowed('hub') || pageAllowed('overview') || can('reports.finance')")), 'Accounting: no Financial System, overview or financial reports');
+await E("login('u_daniel')");
+ok((await E("NAV.flatMap(g => g[1].map(i => i[0])).filter(p => pageAllowed(p)).join()")) === 'overview,notifications,settings', 'Investor sees only overview, notifications, settings');
+ok((await E('App.route.page')) === 'overview', 'Investor lands on the overview');
+ok((await E("searchAll('pilot').length")) === 0, 'Investor search finds no tasks or requests');
+
+// 1e) IFRS statements tie to the ledger; Singapore tax estimate follows the assumptions.
+await E("login('u_sokha')");
+ok(await E("Math.abs(ifrsSFP(scopeCompanyIds(), TODAY_S).check) < 1"), 'statement of financial position balances');
+ok(await E("(() => { const ids = scopeCompanyIds(), f = CUR_YEAR + '-01-01'; const a = ifrsPL(ids, f, TODAY_S), b = pnl(ids, f, TODAY_S); return Math.abs(a.revenue - b.revenue) < 1 && Math.abs(a.cos + b.cogs) < 1; })()"), 'IFRS revenue and cost of sales match the ledger');
+ok(await E("(() => { const c = ifrsCF(scopeCompanyIds(), CUR_YEAR + '-01-01', TODAY_S); return Math.abs(c.closing - cashPosition(scopeCompanyIds(), TODAY_S)) < 1; })()"), 'cash flow statement ends at the bank balance');
+ok(Math.abs((await E("sgTax(300000, state.settings.fin.firstYA).tax")) - 29750) < 0.01, 'start-up exemption: S$300k → tax on S$175k at 17%');
+ok((await E("sgTax(300000, state.settings.fin.firstYA + 3).exempt")) === 7500 + 95000, 'partial exemption after the first 3 YAs');
+ok((await E("state.coa.find(a => a.code === '4100').line")) === 'Revenue', 'Invictus chart of accounts loaded');
+
+// 1f) Overview notes: Financial asks, CEO and Investor are notified, Investor replies, CEO marks done.
+const nid = await E("addReportNote({ point: 'cash', period: 'month', periodLabel: 'test', kind: 'check', audience: ['ceo', 'investor'], text: 'Please check the cash dip' }).id");
+await E("login('u_kim')"); ok((await E("myNotifications().filter(n => n.title.startsWith('Please check: Cash')).length")) > 0, 'CEO notified of note');
+await E("login('u_daniel')"); ok((await E("myNotifications().filter(n => n.title.startsWith('Please check: Cash')).length")) > 0, 'Investor notified of note');
+await E(`replyReportNote(state.reportNotes.find(n => n.id === '${nid}'), 'Looks fine to me')`);
+await E("login('u_kim')"); await E(`resolveReportNote(state.reportNotes.find(n => n.id === '${nid}'))`);
+ok((await E(`JSON.stringify(state.reportNotes.find(n => n.id === '${nid}')) `)).includes('"status":"resolved"'), 'note resolved');
+await E("login('u_piseth')"); ok(!(await E(`canSeeNote(state.reportNotes.find(n => n.id === '${nid}'))`)), 'team members cannot see report notes');
 
 // 2) Expense > threshold routes Manager → Finance → CEO and creates a draft ledger entry on final approval.
 await E("login('u_ethan')");

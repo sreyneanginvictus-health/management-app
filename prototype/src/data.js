@@ -6,11 +6,14 @@ function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; le
 
 function defaultSettings() {
   return {
-    currency: 'USD', currencySymbol: '$',
+    currency: 'SGD', currencySymbol: 'S$',
     allowSelfApproval: false, requireDocForPosting: true, taskReviewRequired: true,
-    budgetAlertPct: 80, reminderDays: 2, escalationRole: 'finance', fiscalYearStartMonth: 1,
+    budgetAlertPct: 80, reminderDays: 2, escalationRole: 'financial', fiscalYearStartMonth: 1,
     // Placeholders — see handoff.md §7. Cash alert: runway = cash ÷ average monthly costs over the lookback.
     cashAlertMonths: 2, runwayLookbackMonths: 3,
+    // Financial System assumptions (Invictus model, Singapore). Marked 'verify' there — confirm each Budget / YA.
+    fin: { framework: 'SFRS(I) — identical to IFRS', yearEndMonth: 12, firstYA: CUR_YEAR + 1, citRate: 0.17, useSUTE: 1, sute1: 0.75, sute2: 0.5, pte1: 0.75, pte2: 0.5, rebatePct: 0, rebateCap: 0,
+      gstRegistered: 0, gstRate: 0.09, gstThreshold: 1000000, usefulLifeYears: 5 },
     projectHealth: {
       offBudgetPct: 100, offOverdueTasks: 3, offPastDue: 1,               // off track if any is true
       riskBudgetPct: 85, riskOverdueTasks: 1, riskDaysToDue: 21, riskMinProgress: 70, // at risk if any is true
@@ -44,15 +47,40 @@ function seedState() {
     version: VERSION, seededOn: TODAY_S, counters: { task: 1000, approval: 300, tx: 0, risk: 0 },
     session: { userId: null, companyFilter: 'all' }, settings: defaultSettings(), roles: defaultRoles(),
     companies: [], departments: [], users: [], projects: [], tasks: [], approvals: [], transactions: [], accounts: [],
-    invoices: [], bills: [], budgets: [], kpis: [], risks: [], documents: [], events: [], notifications: [], audit: [], reminderKeys: {},
+    coa: [], reportNotes: [], invoices: [], bills: [], budgets: [], kpis: [], risks: [], documents: [], events: [], notifications: [], audit: [], reminderKeys: {},
   };
   state = s;
   const at = (dayOffset, h, m) => { const d = addDays(TODAY, dayOffset); d.setHours(h == null ? 9 : h, m == null ? RI(0, 59) : m); return d.toISOString(); };
   const as = (userId, iso, fn) => { const prevU = s.session.userId, prevT = _fakeNow; s.session.userId = userId; _fakeNow = iso; try { return fn(); } finally { s.session.userId = prevU; _fakeNow = prevT; } };
 
+  /* ---------- chart of accounts (Invictus Health model, IFRS / SFRS(I) lines) ---------- */
+  const AC = (code, name, line, type, gst, extra) => Object.assign({ code, name, line, statement: type === 'sfp' ? 'SFP' : 'PL', type, gst, cf: 'operating' }, extra || {});
+  s.coa = [
+    AC('4100', 'Revenue - Home testing kits', 'Revenue', 'income', 'SR'), AC('4400', 'Revenue - Supplements', 'Revenue', 'income', 'SR'),
+    AC('4500', 'Revenue - Solutions / coaching', 'Revenue', 'income', 'SR'), AC('4600', 'Revenue - Key partners (gyms etc.)', 'Revenue', 'income', 'SR'),
+    AC('5100', 'COGS - Home testing kits', 'Cost of sales', 'expense', 'TX'), AC('5200', 'COGS - Lab analysis fees', 'Cost of sales', 'expense', 'TX'),
+    AC('5300', 'COGS - Supplements', 'Cost of sales', 'expense', 'TX'), AC('5400', 'COGS - App hosting / cloud (direct)', 'Cost of sales', 'expense', 'TX'),
+    AC('5500', 'COGS - Partner operation cost', 'Cost of sales', 'expense', 'TX'),
+    AC('6100', 'Other income', 'Other income', 'income', 'OS'), AC('6200', 'Government grants', 'Other income', 'income', 'OS'),
+    AC('7100', 'Marketing & branding', 'Marketing expenses', 'expense', 'TX'), AC('7110', 'Events & booths', 'Marketing expenses', 'expense', 'TX'),
+    AC('7200', 'Delivery & courier (outbound)', 'Distribution & logistics', 'expense', 'TX'), AC('7210', 'Logistics & warehousing', 'Distribution & logistics', 'expense', 'TX'),
+    AC('7300', 'Salaries & wages', 'Employee benefits expense', 'expense', 'OS'), AC('7310', 'CPF & statutory contributions', 'Employee benefits expense', 'expense', 'OS'),
+    AC('7320', 'Staff amenities', 'Employee benefits expense', 'expense', 'TX'), AC('7400', 'Professional fees', 'Professional fees', 'expense', 'TX'),
+    AC('7500', 'Rental - short-term / low-value leases', 'Occupancy & utilities', 'expense', 'TX'), AC('7510', 'Utilities', 'Occupancy & utilities', 'expense', 'TX'),
+    AC('7520', 'Maintenance & cleaning', 'Occupancy & utilities', 'expense', 'TX'), AC('7600', 'Subscriptions & software licences', 'Technology & subscriptions', 'expense', 'TX'),
+    AC('7610', 'Internet & telephone', 'Technology & subscriptions', 'expense', 'TX'), AC('7700', 'Travel & entertainment', 'Travel & transport', 'expense', 'TX'),
+    AC('7710', 'Transportation', 'Travel & transport', 'expense', 'TX'), AC('7800', 'Research & development', 'Research & development', 'expense', 'TX'),
+    AC('7900', 'Other operating expenses', 'Other operating expenses', 'expense', 'TX'),
+    AC('8200', 'Interest income', 'Finance income', 'income', 'OS'), AC('8300', 'Interest expense / bank charges', 'Finance costs', 'expense', 'OS'),
+    AC('1500', 'Property, plant & equipment', 'Property, plant & equipment', 'sfp', 'TX', { cf: 'investing' }),
+    AC('1600', 'Intangible assets - app / software', 'Intangible assets', 'sfp', 'TX', { cf: 'investing' }),
+    AC('2500', 'Repayment of borrowings', 'Borrowings', 'sfp', 'OS', { cf: 'financing' }),
+    AC('3100', 'Share capital', 'Share capital', 'sfp', 'OS', { cf: 'financing' }),
+  ];
+
   /* ---------- company (one, set by the owner 2026-09-29) ---------- */
   s.companies = [
-    { id: 'c_lp', name: 'Longevity project', short: 'Longevity', code: 'LGP', industry: 'Longevity programs', country: 'Cambodia', founded: CUR_YEAR, slot: 1, fixedAssets: 180000, loans: 0, capital: 1200000, structure: 'Five teams reporting to the CEO', description: 'Longevity programs and memberships. Sample figures — replace with real data.' },
+    { id: 'c_lp', name: 'Longevity project', short: 'Longevity', code: 'LGP', industry: 'Longevity programs', country: 'Singapore', founded: CUR_YEAR, slot: 1, fixedAssets: 180000, loans: 0, capital: 1200000, structure: 'Five teams reporting to the CEO', description: 'Longevity programs and memberships. Sample figures — replace with real data.' },
   ];
   /* ---------- departments ---------- */
   const D = (id, name, headId) => ({ id, companyId: 'c_lp', name, headId, parentId: null });
@@ -73,12 +101,13 @@ function seedState() {
     P('u_nadia', 'Nadia Rahman', 'Chief Marketing Officer', 'cmo', 'd_mkt', 'u_kim'),
     P('u_vannak', 'Vannak Chea', 'Operations Manager', 'manager', 'd_ops', 'u_kim'),
     P('u_ethan', 'Ethan Park', 'Engineering Manager', 'manager', 'd_tech', 'u_snakeman'),
-    P('u_sokha', 'Sokha Lim', 'Finance Director', 'finance', 'd_fin', 'u_kim'),
-    P('u_rachel', 'Rachel Tan', 'Senior Accountant', 'finance', 'd_fin', 'u_sokha'),
+    P('u_sokha', 'Sokha Lim', 'Head of Finance', 'financial', 'd_fin', 'u_kim'),
+    P('u_rachel', 'Rachel Tan', 'Accountant', 'accounting', 'd_fin', 'u_sokha'),
     P('u_piseth', 'Piseth Noun', 'Software Engineer', 'member', 'd_tech', 'u_ethan'),
     P('u_lina', 'Lina Ortiz', 'Product Designer', 'member', 'd_tech', 'u_ethan'),
     P('u_mony', 'Mony Keo', 'Client Care Coordinator', 'member', 'd_ops', 'u_vannak'),
     P('u_jonah', 'Jonah Reed', 'Program Coordinator', 'member', 'd_ops', 'u_vannak'),
+    P('u_daniel', 'Daniel Ong', 'Investor (sample)', 'investor', 'd_exec', null),
   ];
 
   /* ---------- bank & cash accounts ---------- */
@@ -88,9 +117,9 @@ function seedState() {
   ];
 
   /* ---------- ledger (cash basis, last 21 months) — gives Finance and Reports real numbers ---------- */
-  const CUSTOMERS = ['Program clients', 'Membership billing', 'Corporate wellness — Mekong Beverage', 'Corporate wellness — Angkor Garments'];
-  const PL = { rev: [['Longevity programs', 96000, .02, 'd_ops'], ['Memberships', 38000, .03, 'd_mkt']], payroll: { d_exec: 22000, d_fin: 9000, d_tech: 24000, d_mkt: 9500, d_ops: 28000 },
-    cogs: .2, rent: 11000, mkt: .06, sw: 3200, util: 2300 };
+  const CUSTOMERS = ['Online shop', 'Coaching clients', 'Corporate wellness — Harbour Bank', 'FitLab Gyms (partner)'];
+  const PL = { rev: [['Revenue - Home testing kits', 52000, .025, 'd_ops'], ['Revenue - Solutions / coaching', 41000, .02, 'd_ops'], ['Revenue - Supplements', 18000, .03, 'd_mkt'], ['Revenue - Key partners (gyms etc.)', 9000, .035, 'd_mkt']],
+    payroll: { d_exec: 22000, d_fin: 9000, d_tech: 24000, d_mkt: 9500, d_ops: 28000 }, cogs: .26, rent: 11000, mkt: .06, sw: 3200, util: 2300 };
   const months = []; for (let i = 20; i >= 0; i--) { const d = new Date(CUR_YEAR, CUR_MONTH - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth() }); }
   const txs = [];
   const cid = 'c_lp';
@@ -111,15 +140,22 @@ function seedState() {
       if (lastDay >= 15) mk(cid, day(RI(15, 27)), 'revenue', cat, v - a1, dep, pick(CUSTOMERS), cat + ' — ' + MONTHS[m] + ' collections');
       revTotal += v;
     }
-    if (lastDay >= 25 || !(y === CUR_YEAR && m === CUR_MONTH)) for (const [dep, amt] of Object.entries(PL.payroll)) mk(cid, day(25), 'expense', 'Payroll', amt * Math.pow(1.008, idx) * R(.98, 1.03), dep, 'Payroll run', MONTHS[m] + ' payroll — ' + dept(dep).name);
-    mk(cid, day(RI(8, 20)), 'expense', 'Cost of sales', revTotal * PL.cogs * R(.94, 1.06), 'd_ops', 'Lab & supplements supplier', 'Direct program costs — ' + MONTHS[m]);
-    mk(cid, day(1), 'expense', 'Rent & facilities', PL.rent, 'd_ops', 'Landlord / facilities', MONTHS[m] + ' rent');
-    mk(cid, day(RI(5, 18)), 'expense', 'Marketing', revTotal * PL.mkt * R(.8, 1.25), 'd_mkt', 'Brightline Media', 'Campaigns — ' + MONTHS[m]);
-    mk(cid, day(RI(2, 6)), 'expense', 'Software & IT', PL.sw * R(.95, 1.1), 'd_tech', 'SaaS subscriptions', 'Monthly software subscriptions');
-    if (rnd() > .3 && lastDay > 10) mk(cid, day(RI(6, 24)), 'expense', 'Travel', R(600, 2200), 'd_exec', 'Corporate travel desk', 'Business travel');
+    if (lastDay >= 25 || !(y === CUR_YEAR && m === CUR_MONTH)) for (const [dep, amt] of Object.entries(PL.payroll)) {
+      const gross = amt * Math.pow(1.008, idx) * R(.98, 1.03);
+      mk(cid, day(25), 'expense', 'Salaries & wages', gross * .87, dep, 'Payroll run', MONTHS[m] + ' salaries — ' + dept(dep).name);
+      mk(cid, day(25), 'expense', 'CPF & statutory contributions', gross * .13, dep, 'CPF Board', MONTHS[m] + ' CPF — ' + dept(dep).name);
+    }
+    mk(cid, day(RI(8, 20)), 'expense', 'COGS - Home testing kits', revTotal * PL.cogs * .5 * R(.94, 1.06), 'd_ops', 'Kit components supplier', 'Kit components — ' + MONTHS[m]);
+    mk(cid, day(RI(8, 20)), 'expense', 'COGS - Lab analysis fees', revTotal * PL.cogs * .32 * R(.94, 1.06), 'd_ops', 'Partner laboratory', 'Lab analysis — ' + MONTHS[m]);
+    mk(cid, day(RI(8, 20)), 'expense', 'COGS - Supplements', revTotal * PL.cogs * .18 * R(.94, 1.06), 'd_ops', 'Supplements manufacturer', 'Supplements stock — ' + MONTHS[m]);
+    mk(cid, day(1), 'expense', 'Rental - short-term / low-value leases', PL.rent, 'd_ops', 'Landlord / facilities', MONTHS[m] + ' rent');
+    mk(cid, day(RI(5, 18)), 'expense', 'Marketing & branding', revTotal * PL.mkt * R(.8, 1.25), 'd_mkt', 'Brightline Media', 'Campaigns — ' + MONTHS[m]);
+    mk(cid, day(RI(2, 6)), 'expense', 'Subscriptions & software licences', PL.sw * R(.95, 1.1), 'd_tech', 'SaaS subscriptions', 'Monthly software subscriptions');
+    if (rnd() > .3 && lastDay > 10) mk(cid, day(RI(6, 24)), 'expense', 'Travel & entertainment', R(600, 2200), 'd_exec', 'Corporate travel desk', 'Business travel');
     if (rnd() > .4 && lastDay > 10) mk(cid, day(RI(10, 26)), 'expense', 'Professional fees', R(1200, 4800), 'd_fin', pick(['Legal counsel', 'Audit & tax advisors', 'IT consultants']), 'Professional services');
     if (lastDay >= 15) mk(cid, day(15), 'expense', 'Utilities', PL.util * R(.9, 1.15), 'd_ops', 'Electricity & water utility', MONTHS[m] + ' utilities');
-    if (idx === 14) mk(cid, day(12), 'expense', 'Equipment (capex)', 42000, 'd_ops', 'Equipment supplier', 'Body-composition scanner and lab equipment');
+    mk(cid, day(28), 'expense', 'Interest expense / bank charges', R(40, 90), 'd_fin', 'Primary bank', 'Bank charges');
+    if (idx === 14) mk(cid, day(12), 'expense', 'Property, plant & equipment', 42000, 'd_ops', 'Equipment supplier', 'Body-composition scanner and lab equipment');
   });
   txs.sort((a, b) => a.date < b.date ? -1 : 1);
   txs.forEach((t, i) => { t.no = 'TX-' + String(i + 1).padStart(5, '0'); });
@@ -130,26 +166,26 @@ function seedState() {
     let run = 0, minRun = 0; for (const t of txs) { run += (t.kind === 'revenue' ? 1 : -1) * t.amount; minRun = Math.min(minRun, run); }
     a.opening = round(Math.max(820000 - flows, -minRun + 120000), 1000);
   }
-  for (let k = 0; k < 3; k++) { const t = mk(cid, rel(-RI(3, 50)), 'expense', 'Travel', RI(40, 380), 'd_ops', 'Taxi & meals', 'Petty cash spend'); t.accountId = 'a_c_lp_pc'; t.no = 'TX-' + String(++s.counters.tx).padStart(5, '0'); }
+  for (let k = 0; k < 3; k++) { const t = mk(cid, rel(-RI(3, 50)), 'expense', 'Transportation', RI(40, 380), 'd_ops', 'Taxi & meals', 'Petty cash spend'); t.accountId = 'a_c_lp_pc'; t.no = 'TX-' + String(++s.counters.tx).padStart(5, '0'); }
   // immutable ledger examples: one reversal, one adjustment, one draft waiting to be posted
-  const lastSw = txs.filter(t => t.category === 'Software & IT' && t.date < rel(-5)).slice(-1)[0];
+  const lastSw = txs.filter(t => t.category === 'Subscriptions & software licences' && t.date < rel(-5)).slice(-1)[0];
   if (lastSw) {
-    const dup = mk(cid, lastSw.date, 'expense', 'Software & IT', lastSw.amount, lastSw.departmentId, lastSw.party, 'Monthly software subscriptions (duplicate charge)');
+    const dup = mk(cid, lastSw.date, 'expense', 'Subscriptions & software licences', lastSw.amount, lastSw.departmentId, lastSw.party, 'Monthly software subscriptions (duplicate charge)');
     dup.no = 'TX-' + String(++s.counters.tx).padStart(5, '0');
     as('u_rachel', at(-4, 10), () => { reverseTransaction(dup, 'Duplicate vendor charge — refund confirmed by vendor'); });
   }
   const util = txs.filter(t => t.category === 'Utilities').slice(-2)[0];
   if (util) as('u_rachel', at(-9, 15), () => { adjustTransaction(util, 312, 'Final utility bill higher than estimate (meter re-read)'); });
-  as('u_rachel', at(-1, 11), () => createTransaction({ date: rel(-1), companyId: cid, departmentId: 'd_ops', kind: 'expense', category: 'Cost of sales', amount: 4280, accountId: 'a_c_lp_op', party: 'Lab & supplements supplier', memo: 'Blood-panel kits — restock', docs: [{ id: uid('f'), name: 'lab-inv-2291.pdf', size: 212000 }] }));
+  as('u_rachel', at(-1, 11), () => createTransaction({ date: rel(-1), companyId: cid, departmentId: 'd_ops', kind: 'expense', category: 'COGS - Home testing kits', amount: 4280, accountId: 'a_c_lp_op', party: 'Kit components supplier', memo: 'Blood-panel kits — restock', docs: [{ id: uid('f'), name: 'lab-inv-2291.pdf', size: 212000 }] }));
 
   /* ---------- open invoices and bills ---------- */
   let invN = 4100, billN = 7700;
   for (let k = 0; k < 5; k++) {
     const issue = -RI(2, 85); const amt = round(R(3000, 24000), 10);
     const r = rnd(); const paid = r < .25 ? amt : r < .4 ? round(amt * R(.3, .6), 10) : 0;
-    s.invoices.push({ id: uid('inv'), number: 'INV-' + CUR_YEAR + '-' + (++invN), companyId: cid, departmentId: 'd_ops', category: 'Longevity programs', customer: pick(CUSTOMERS.slice(2).concat(['Riverside Clinic Group'])), issueDate: rel(issue), dueDate: rel(issue + 30), amount: amt, paid, status: k === 4 ? 'draft' : 'sent', docs: [{ id: uid('f'), name: 'INV-' + CUR_YEAR + '-' + invN + '.pdf', size: 96000 }] });
+    s.invoices.push({ id: uid('inv'), number: 'INV-' + CUR_YEAR + '-' + (++invN), companyId: cid, departmentId: 'd_ops', category: 'Revenue - Solutions / coaching', customer: pick(CUSTOMERS.slice(2).concat(['Riverside Clinic Group'])), issueDate: rel(issue), dueDate: rel(issue + 30), amount: amt, paid, status: k === 4 ? 'draft' : 'sent', docs: [{ id: uid('f'), name: 'INV-' + CUR_YEAR + '-' + invN + '.pdf', size: 96000 }] });
   }
-  for (const [vendor, cat, dep] of [['Lab & supplements supplier', 'Cost of sales', 'd_ops'], ['Brightline Media', 'Marketing', 'd_mkt'], ['SecureAudit Partners', 'Professional fees', 'd_fin']]) {
+  for (const [vendor, cat, dep] of [['Partner laboratory', 'COGS - Lab analysis fees', 'd_ops'], ['Brightline Media', 'Marketing & branding', 'd_mkt'], ['Audit & tax advisors', 'Professional fees', 'd_fin']]) {
     const issue = -RI(3, 60); const amt = round(R(1800, 12000), 10);
     s.bills.push({ id: uid('bill'), number: 'BILL-' + (++billN), companyId: cid, departmentId: dep, category: cat, vendor, date: rel(issue), dueDate: rel(issue + 30), amount: amt, paid: rnd() < .2 ? amt : 0, status: 'open', docs: [{ id: uid('f'), name: 'BILL-' + billN + '.pdf', size: 140000 }] });
   }
@@ -161,8 +197,8 @@ function seedState() {
   for (const t of txs) if (t.kind === 'expense' && t.date >= ytdFrom) { const k = t.departmentId + '|' + t.category; byKey[k] = (byKey[k] || 0) + t.amount; }
   for (const [k, v] of Object.entries(byKey)) {
     const [departmentId, category] = k.split('|');
-    const f = category === 'Marketing' ? R(.82, 1.02) : R(.97, 1.14);
-    const annual = category === 'Equipment (capex)' ? v * R(1.1, 1.6) : v / elapsed * f;
+    const f = category === 'Marketing & branding' ? R(.82, 1.02) : R(.97, 1.14);
+    const annual = category === 'Property, plant & equipment' ? v * R(1.1, 1.6) : v / elapsed * f;
     s.budgets.push({ id: uid('bg'), companyId: cid, departmentId, category, year: CUR_YEAR, amount: round(Math.max(annual, v * 1.02), 500) });
   }
 
@@ -211,7 +247,7 @@ function seedState() {
     });
     return a;
   };
-  A('u_mony', -2, { type: 'expense', title: 'Blood-panel kits for pilot group', description: '40 kits for baseline lab tests.', amount: 1800, companyId: cid, departmentId: 'd_ops', category: 'Cost of sales', projectId: 'p_launch', vendor: 'Lab & supplements supplier', attachments: [{ id: 'f_a1', name: 'lab-kits-quote.pdf', size: 84000 }] });
+  A('u_mony', -2, { type: 'expense', title: 'Blood-panel kits for pilot group', description: '40 kits for baseline lab tests.', amount: 1800, companyId: cid, departmentId: 'd_ops', category: 'COGS - Home testing kits', projectId: 'p_launch', vendor: 'Kit components supplier', attachments: [{ id: 'f_a1', name: 'lab-kits-quote.pdf', size: 84000 }] });
 
   /* ---------- KPIs ---------- */
   const series = (start, end, noise) => { const out = []; for (let i = 0; i < 9; i++) out.push(start + (end - start) * i / 8 + (rnd() - .5) * noise); return out; };
@@ -229,6 +265,9 @@ function seedState() {
   EV('Pilot group kickoff', 12); EV('Monthly management review', -5);
 
   /* ---------- a few system notifications ---------- */
+  s.reportNotes = [];
+  as('u_sokha', at(-1, 17), () => addReportNote({ point: 'gross', period: 'last_month', periodLabel: overviewPeriod('last_month').label, kind: 'feedback', audience: ['ceo', 'investor'],
+    text: 'Lab analysis fees rose faster than kit sales. Should we renegotiate with the partner lab or raise the kit price?' }));
   for (const uid_ of ['u_kim', 'u_sokha']) s.notifications.push({ id: uid('nt'), userId: uid_, at: at(-2, 8), read: false, type: 'report', title: MONTHS_L[(CUR_MONTH + 11) % 12] + ' management report is ready', body: 'P&L, cash and KPIs', link: { page: 'reports' } });
   s.notifications.sort((a, b) => a.at < b.at ? 1 : -1);
   s.audit.sort((a, b) => a.at < b.at ? 1 : -1);

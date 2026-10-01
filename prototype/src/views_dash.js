@@ -4,7 +4,7 @@
 VIEWS.login = function () {
   const open = state.tasks.filter(t => t.status !== 'completed').length;
   const pend = state.approvals.filter(a => a.status === 'pending').length;
-  const demo = [['u_kim', 'CEO'], ['u_snakeman', 'CTO'], ['u_nadia', 'CMO'], ['u_sokha', 'Finance'], ['u_vannak', 'Manager'], ['u_ethan', 'Manager'], ['u_piseth', 'Team member'], ['u_mony', 'Team member']];
+  const demo = [['u_kim', 'CEO'], ['u_snakeman', 'CTO'], ['u_nadia', 'CMO'], ['u_sokha', 'Financial'], ['u_rachel', 'Accounting'], ['u_vannak', 'Manager'], ['u_mony', 'Team member'], ['u_daniel', 'Investor']];
   return '<div class="login"><section class="login-art"><div class="brand" style="padding:0"><div class="brand-mark">' + LOGO + '</div><div><b>Negroni</b><small>Management OS · prototype</small></div></div>' +
     '<div class="stack" style="gap:18px"><h1>One place to run the whole company.</h1><p>Tasks, approvals, finance, people and performance for Longevity project — each person sees only what their role allows.</p></div>' +
     '<div class="mini"><div><b>' + state.companies.length + '</b><small>' + (state.companies.length === 1 ? 'company' : 'companies') + '</small></div><div><b>' + state.users.length + '</b><small>people</small></div><div><b>' + open + '</b><small>open tasks</small></div><div><b>' + pend + '</b><small>requests in approval</small></div></div>' +
@@ -206,7 +206,8 @@ VIEWS.dashboard = function () {
   const r = me().role;
   if (r === 'ceo') return dashExec();
   if (r === 'cto' || r === 'cmo') return dashCto();
-  if (r === 'finance') return dashFinance();
+  if (r === 'financial' || r === 'accounting') return dashFinance();
+  if (r === 'investor') return VIEWS.overview();
   if (r === 'manager') return dashManager();
   return dashMember();
 };

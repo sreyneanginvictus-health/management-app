@@ -117,7 +117,7 @@ function openNewRequest(pre) {
     field('Justification', '<textarea class="input" name="description" id="f_description" placeholder="Why is this needed? Link to project or budget line."></textarea>', { full: 1 }) +
     field('Company', selectF('companyId', companyOptions(scopeCompanyIds()), cid, 'data-act-change="nr-company"')) +
     field('Department', '<span id="nr-dept">' + selectF('departmentId', deptOptions(cid), state.departments.some(d => d.id === u.departmentId && d.companyId === cid) ? u.departmentId : null, 'data-act-change="nr-update"') + '</span>') +
-    '<div class="field" id="nr-cat-wrap">' + '<label for="f_category">Budget category</label>' + selectF('category', EXPENSE_CATS.filter(c => c !== 'Loan repayment'), 'Travel') + '</div>' +
+    '<div class="field" id="nr-cat-wrap">' + '<label for="f_category">Budget category</label>' + selectF('category', expenseCats().filter(c => cfSection(c) !== 'financing'), 'Travel & entertainment') + '</div>' +
     field('Vendor / payee', inputEl('vendor', '', 'placeholder="Optional"')) +
     '<div class="field full" id="nr-bill-wrap" hidden><label for="f_billId">Bill to pay</label>' + (billOpts.length ? selectF('billId', billOpts, '', 'data-act-change="nr-bill"') : '<div class="muted small">No open bills in your scope.</div>') + '</div>' +
     field('Supporting documents', '<label class="btn sm" style="align-self:flex-start">' + icon('clip') + 'Attach receipt / quote<input type="file" hidden multiple data-upload="modal"></label><div id="pending-files" class="stack" style="gap:6px"></div>', { full: 1 }) +

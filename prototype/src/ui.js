@@ -213,9 +213,11 @@ function attachList(files, opts) {
 /* ---------- shell ---------- */
 const NAV = [
   ['Workspace', [['dashboard', 'Dashboard', 'home', 'dashboard.view'], ['tasks', 'Tasks', 'check', 'tasks.view'], ['projects', 'Projects', 'folder', 'projects.view'], ['approvals', 'Approvals', 'stamp', 'approvals.view'], ['operations', 'Operations', 'gauge', 'operations.view']]],
-  ['Business', [['finance', 'Finance', 'coins', 'finance.view'], ['reports', 'Reports', 'chart', 'reports.view'], ['companies', 'Companies', 'building', 'companies.view'], ['people', 'People', 'users', 'people.view']]],
+  ['Business', [['overview', 'Financial Overview', 'target', 'overview.view'], ['hub', 'Financial System', 'shield', 'fhub.view'], ['finance', 'Finance', 'coins', 'finance.view'], ['reports', 'Reports', 'chart', 'reports.view'], ['companies', 'Companies', 'building', 'companies.view'], ['people', 'People', 'users', 'people.view']]],
   ['Tools', [['documents', 'Documents', 'file', 'documents.view'], ['calendar', 'Calendar', 'calendar', 'calendar.view'], ['notifications', 'Notifications', 'bell', null], ['settings', 'Settings', 'gear', null]]],
 ];
+// First page a person may open (Investors have no dashboard: they land on the Financial Overview).
+function homePage() { for (const [, items] of NAV) for (const it of items) if (!it[3] || can(it[3])) return it[0]; return 'notifications'; }
 function pageAllowed(page) { for (const [, items] of NAV) for (const it of items) if (it[0] === page) return !it[3] || can(it[3]); return false; }
 function myPendingApprovals() {
   const a = state.approvals.filter(x => canActOnApproval(x)).length;
@@ -249,7 +251,7 @@ function render() {
   if (!state) { root.innerHTML = VIEWS.cloudScreen(); return; }
   if (!state.session.userId) { root.innerHTML = VIEWS.login(); return; }
   const ae = document.activeElement; const fid = ae && ae.id; const sel = ae && ae.selectionStart;
-  if (!pageAllowed(App.route.page)) App.route = { page: 'dashboard' };
+  if (!pageAllowed(App.route.page)) App.route = { page: homePage() };
   let content;
   try { content = (VIEWS[App.route.page] || VIEWS.dashboard)(); }
   catch (e) { console.error(e); content = card('Something went wrong', '<p>' + esc(e.message) + '</p>'); }
@@ -290,9 +292,9 @@ function searchAll(q) {
   const m = s => String(s || '').toLowerCase().includes(q);
   const out = [];
   const push = (group, items) => { if (items.length) out.push([group, items.slice(0, 6)]); };
-  push('Tasks', state.tasks.filter(t => visibleTask(t) && (m(t.title) || m(t.key))).map(t => ({ t: 'task', id: t.id, label: t.title, sub: t.key + ' · ' + TASK_STATUS[t.status].label })));
+  if (can('tasks.view')) push('Tasks', state.tasks.filter(t => visibleTask(t) && (m(t.title) || m(t.key))).map(t => ({ t: 'task', id: t.id, label: t.title, sub: t.key + ' · ' + TASK_STATUS[t.status].label })));
   if (can('projects.view')) push('Projects', state.projects.filter(p => visibleProject(p) && m(p.name)).map(p => ({ t: 'project', id: p.id, label: p.name, sub: company(p.companyId).short })));
-  push('Requests', state.approvals.filter(a => visibleApproval(a) && (m(a.title) || m(a.no))).map(a => ({ t: 'approval', id: a.id, label: a.title, sub: a.no + ' · ' + a.status })));
+  if (can('approvals.view')) push('Requests', state.approvals.filter(a => visibleApproval(a) && (m(a.title) || m(a.no))).map(a => ({ t: 'approval', id: a.id, label: a.title, sub: a.no + ' · ' + a.status })));
   if (can('people.view')) push('People', state.users.filter(u => canSeeUser(u) && (m(u.name) || m(u.title))).map(u => ({ t: 'user', id: u.id, label: u.name, sub: u.title })));
   if (can('companies.view')) push('Companies', state.companies.filter(c => scopeCompanyIds().includes(c.id) && (m(c.name) || m(c.industry))).map(c => ({ t: 'company', id: c.id, label: c.name, sub: c.industry })));
   if (can('finance.view')) {
@@ -386,7 +388,7 @@ Object.assign(CHANGE, {
   scope: el => { state.session.companyFilter = el.value; App.ui = { navOpen: false }; refresh(); },
 });
 function login(id) {
-  state.session.userId = id; state.session.companyFilter = 'all'; App.ui = {}; App.route = { page: 'dashboard' }; App.drawer = null;
+  state.session.userId = id; state.session.companyFilter = 'all'; App.ui = {}; App.route = { page: homePage() }; App.drawer = null;
   audit('login', 'session', id, 'Signed in');
   runDeadlineSweep();
   render(); renderDrawer(); window.scrollTo(0, 0);

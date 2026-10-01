@@ -111,7 +111,7 @@ VIEWS.settings = function () {
   const tabs = [['profile', 'My profile']];
   if (admin) tabs.push(['rules', 'Approval rules'], ['business', 'Business rules'], ['roles', 'Roles & permissions']);
   if (can('audit.view')) tabs.push(['audit', 'Audit log']);
-  tabs.push(['system', 'System & data']);
+  if (me().role !== 'investor') tabs.push(['system', 'System & data']);
   let tab = App.ui.setTab || 'profile'; if (!tabs.some(t => t[0] === tab)) tab = 'profile';
   let h = pageHead('Settings', admin ? 'Business rules are data, not code — change them here without a release.' : 'Your profile and preferences');
   h += tabsEl(tabs, tab, 'set-tab');

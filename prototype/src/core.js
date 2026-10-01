@@ -5,7 +5,7 @@
    an API later only touches load/save + the engine functions below.
    ===================================================================== */
 'use strict';
-const VERSION = 6;
+const VERSION = 7;
 const STORE_KEY = 'northstar-hcms-state';
 
 /* ---------- date + format helpers ---------- */
@@ -118,6 +118,10 @@ const PERMISSIONS = [
   { key: 'people.manage', label: 'Add & edit people', group: 'Organization' },
   { key: 'documents.view', label: 'Documents', group: 'Core' },
   { key: 'calendar.view', label: 'Calendar', group: 'Core' },
+  { key: 'fhub.view', label: 'Financial System (IFRS statements, tax)', group: 'Financial System' },
+  { key: 'fhub.manage', label: 'Edit chart of accounts & tax assumptions', group: 'Financial System' },
+  { key: 'overview.view', label: 'Financial Overview report', group: 'Financial System' },
+  { key: 'overview.note', label: 'Add notes to the overview report', group: 'Financial System' },
   { key: 'settings.admin', label: 'Administer rules & permissions', group: 'Admin' },
   { key: 'audit.view', label: 'View audit log', group: 'Admin' },
 ];
@@ -128,14 +132,20 @@ function defaultRoles() {
     ceo: { label: 'CEO', level: 5, defaultScope: 'holding', perms: ALL_PERMS.slice() },
     cto: { label: 'CTO', level: 4, defaultScope: 'holding', perms: base.concat(['tasks.create', 'projects.view', 'projects.manage', 'approvals.view_all', 'operations.view', 'reports.view', 'kpi.update', 'companies.view', 'people.view', 'budget.view_own']) },
     cmo: { label: 'CMO', level: 4, defaultScope: 'holding', perms: [] },  // same permissions as the CTO (filled in below)
-    finance: { label: 'Finance / Accounting', level: 3, defaultScope: 'holding', perms: base.concat(['tasks.create', 'projects.view', 'approvals.view_all', 'finance.view', 'finance.manage', 'finance.confidential', 'budget.view_own', 'reports.view', 'reports.finance', 'companies.view', 'people.view', 'audit.view']) },
+    // Financial position: everything in finance plus the Financial System (IFRS statements, tax) and the overview report
+    financial: { label: 'Financial', level: 4, defaultScope: 'holding', perms: base.concat(['tasks.create', 'projects.view', 'approvals.view_all', 'operations.view', 'finance.view', 'finance.manage', 'finance.confidential', 'budget.view_own', 'reports.view', 'reports.finance', 'companies.view', 'people.view', 'audit.view', 'fhub.view', 'fhub.manage', 'overview.view', 'overview.note']) },
+    // Accounting position: standard bookkeeping (transactions, invoices, bills, bank, budgets) and operations — no Financial System
+    accounting: { label: 'Accounting', level: 3, defaultScope: 'holding', perms: base.concat(['tasks.create', 'projects.view', 'operations.view', 'finance.view', 'finance.manage', 'budget.view_own', 'companies.view', 'people.view']) },
     manager: { label: 'Manager', level: 3, defaultScope: 'department', perms: base.concat(['tasks.create', 'projects.view', 'projects.manage', 'operations.view', 'reports.view', 'kpi.update', 'companies.view', 'people.view', 'budget.view_own']) },
     member: { label: 'Team Member', level: 1, defaultScope: 'self', perms: base.concat(['projects.view']) },
+    // Investor: reads the Financial Overview and answers notes; sees nothing else
+    investor: { label: 'Investor', level: 0, defaultScope: 'holding', perms: ['overview.view'] },
   };
   r.cmo.perms = r.cto.perms.slice();
   return r;
 }
-const ROLE_KEYS = ['ceo', 'cto', 'cmo', 'finance', 'manager', 'member'];
+const ROLE_KEYS = ['ceo', 'cto', 'cmo', 'financial', 'accounting', 'manager', 'member', 'investor'];
+const FINANCE_ROLES = ['financial', 'accounting'];
 const SCOPES = { holding: 'Entire holding', company: 'Own company', department: 'Own department', self: 'Own work only' };
 function roleLabel(r) { return (state.roles[r] || {}).label || titleCase(r); }
 function can(perm, u) { u = u || me(); const r = state.roles[u.role]; return !!(r && r.perms.includes(perm)); }
@@ -368,9 +378,8 @@ function resolveApprovers(role, req) {
   if (role === 'manager') ids = R.managerId ? [R.managerId] : [];
   else if (role === 'dept_head') { const d = dept(req.departmentId); ids = d.headId ? [d.headId] : []; }
   else if (role === 'finance') {
-    const local = act.filter(u => u.role === 'finance' && u.scope !== 'holding' && u.companyId === req.companyId).map(u => u.id);
-    const group = act.filter(u => u.role === 'finance' && u.scope === 'holding').map(u => u.id);
-    ids = local.concat(group);
+    const pick = r => act.filter(u => u.role === r && coversCompany(u, req.companyId) && u.id !== req.requesterId).map(u => u.id);
+    ids = pick('financial'); if (!ids.length) ids = pick('accounting');
   } else if (role === 'ceo') {
     const local = act.filter(u => u.role === 'ceo' && u.scope === 'company' && u.companyId === req.companyId).map(u => u.id);
     const group = act.filter(u => u.role === 'ceo' && u.scope === 'holding').map(u => u.id);
@@ -449,10 +458,10 @@ function cancelApproval(a) {
 function applyApprovalEffects(a) {
   if (['expense', 'purchase'].includes(a.type) && a.amount) {
     const acct = state.accounts.find(x => x.companyId === a.companyId && x.type === 'bank');
-    const tx = createTransaction({ date: TODAY_S, companyId: a.companyId, departmentId: a.departmentId, kind: 'expense', category: a.category || (a.type === 'purchase' ? 'Equipment (capex)' : 'Travel'), amount: a.amount, accountId: acct && acct.id, party: a.vendor || user(a.requesterId).name, memo: a.title + ' (' + a.no + ')', approvalId: a.id, projectId: a.projectId, docs: (a.attachments || []).map(d => Object.assign({}, d)), status: 'draft' }, { silent: true });
+    const tx = createTransaction({ date: TODAY_S, companyId: a.companyId, departmentId: a.departmentId, kind: 'expense', category: a.category || (a.type === 'purchase' ? 'Property, plant & equipment' : 'Travel & entertainment'), amount: a.amount, accountId: acct && acct.id, party: a.vendor || user(a.requesterId).name, memo: a.title + ' (' + a.no + ')', approvalId: a.id, projectId: a.projectId, docs: (a.attachments || []).map(d => Object.assign({}, d)), status: 'draft' }, { silent: true });
     a.linkedTxId = tx.id;
     audit('created', 'transaction', tx.id, 'Draft ' + tx.no + ' created from approved request ' + a.no + ' — awaiting posting by Finance');
-    notify(state.users.filter(x => x.role === 'finance' && coversCompany(x, a.companyId)).map(x => x.id), { type: 'finance', title: 'Ready to post: ' + tx.no, body: money(a.amount) + ' · ' + a.title, link: { page: 'finance', tab: 'transactions', id: tx.id } });
+    notify(state.users.filter(x => FINANCE_ROLES.includes(x.role) && coversCompany(x, a.companyId)).map(x => x.id), { type: 'finance', title: 'Ready to post: ' + tx.no, body: money(a.amount) + ' · ' + a.title, link: { page: 'finance', tab: 'transactions', id: tx.id } });
   }
   if (a.type === 'payment' && a.billId) {
     const b = get('bills', a.billId);
@@ -461,7 +470,7 @@ function applyApprovalEffects(a) {
   if (a.type === 'budget' && a.amount) {
     let line = state.budgets.find(x => x.companyId === a.companyId && x.departmentId === a.departmentId && x.category === a.category && x.year === CUR_YEAR);
     if (line) { line.amount += a.amount; }
-    else { line = { id: uid('bg'), companyId: a.companyId, departmentId: a.departmentId, category: a.category || 'Marketing', year: CUR_YEAR, amount: a.amount }; state.budgets.push(line); }
+    else { line = { id: uid('bg'), companyId: a.companyId, departmentId: a.departmentId, category: a.category || 'Marketing & branding', year: CUR_YEAR, amount: a.amount }; state.budgets.push(line); }
     audit('adjusted', 'budget', line.id, 'Budget increased by ' + money(a.amount) + ' via ' + a.no);
   }
   if (a.type === 'project' && a.projectId) {
@@ -475,9 +484,15 @@ function applyApprovalEffects(a) {
 /* =====================================================================
    FINANCE ENGINE — cash-basis ledger with immutable posted entries
    ===================================================================== */
-const EXPENSE_CATS = ['Payroll', 'Cost of sales', 'Rent & facilities', 'Marketing', 'Software & IT', 'Travel', 'Professional fees', 'Utilities', 'Equipment (capex)', 'Loan repayment'];
-const CF_SECTION = { 'Equipment (capex)': 'investing', 'Loan repayment': 'financing', 'Capital injection': 'financing' };
-const NON_PL = ['Equipment (capex)', 'Loan repayment', 'Capital injection'];
+/* Chart of accounts (state.coa, Financial System → Chart of accounts). A transaction's category is an account name;
+   each account maps to an IFRS statement line (Invictus model, SFRS(I) = IFRS). Statement 'PL' = profit or loss,
+   'SFP' = financial position (capex, loans, share capital — not in profit or loss). */
+function coaAcct(name) { return (state.coa || []).find(a => a.name === name) || null; }
+function coaLine(name) { const a = coaAcct(name); return a ? a.line : 'Other operating expenses'; }
+function isNonPL(name) { const a = coaAcct(name); return !!(a && a.statement === 'SFP'); }
+function cfSection(name) { const a = coaAcct(name); return (a && a.cf) || 'operating'; }
+function revenueCats() { return (state.coa || []).filter(a => a.type === 'income').map(a => a.name); }
+function expenseCats() { return (state.coa || []).filter(a => a.type === 'expense' || (a.type === 'sfp' && a.cf !== 'financing') || a.name === 'Repayment of borrowings').map(a => a.name); }
 function createTransaction(data, opts) {
   const t = Object.assign({ id: uid('tx'), no: 'TX-' + String(++state.counters.tx).padStart(5, '0'), status: 'draft', docs: [], createdBy: state.session.userId, createdAt: nowISO() }, data);
   state.transactions.push(t);
@@ -511,12 +526,12 @@ function pnl(companyIds, from, to) {
   const tx = txIn(companyIds, from, to);
   const rev = {}, exp = {};
   for (const t of tx) {
-    if (NON_PL.includes(t.category)) continue;
+    if (isNonPL(t.category)) continue;
     if (t.kind === 'revenue') rev[t.category] = (rev[t.category] || 0) + t.amount;
     else exp[t.category] = (exp[t.category] || 0) + t.amount;
   }
-  const revenue = sum(Object.values(rev)); const cogs = exp['Cost of sales'] || 0;
-  const opex = sum(Object.entries(exp).filter(([k]) => k !== 'Cost of sales').map(([, v]) => v));
+  const revenue = sum(Object.values(rev)); const cogs = sum(Object.entries(exp).filter(([k]) => coaLine(k) === 'Cost of sales').map(([, v]) => v));
+  const opex = sum(Object.entries(exp).filter(([k]) => coaLine(k) !== 'Cost of sales').map(([, v]) => v));
   return { rev, exp, revenue, cogs, gross: revenue - cogs, opex, expenses: cogs + opex, net: revenue - cogs - opex };
 }
 function monthRange(y, m) { return [y + '-' + z2(m + 1) + '-01', ymd(new Date(y, m + 1, 0))]; }
@@ -587,8 +602,8 @@ function balanceSheet(ids, asOf) {
   const cash = cashPosition(ids, asOf);
   const ar = arOutstanding(ids); const ap = apOutstanding(ids);
   const cos = state.companies.filter(c => ids.includes(c.id));
-  const fixed = sum(cos, c => c.fixedAssets || 0) + sum(txIn(ids, null, asOf).filter(t => t.category === 'Equipment (capex)'), t => t.amount);
-  const loans = sum(cos, c => c.loans || 0) - sum(txIn(ids, null, asOf).filter(t => t.category === 'Loan repayment'), t => t.amount);
+  const fixed = sum(cos, c => c.fixedAssets || 0) + sum(txIn(ids, null, asOf).filter(t => cfSection(t.category) === 'investing'), t => t.amount);
+  const loans = sum(cos, c => c.loans || 0) - sum(txIn(ids, null, asOf).filter(t => t.category === 'Repayment of borrowings'), t => t.amount);
   const capital = sum(cos, c => c.capital || 0);
   const assets = cash + ar + fixed; const liab = ap + loans;
   return { cash, ar, fixed, assets, ap, loans, liab, capital, retained: assets - liab - capital, equity: assets - liab };
@@ -596,7 +611,7 @@ function balanceSheet(ids, asOf) {
 function cashFlow(ids, from, to) {
   const tx = txIn(ids, from, to);
   const sec = { operating: { in: 0, out: 0 }, investing: { in: 0, out: 0 }, financing: { in: 0, out: 0 } };
-  for (const t of tx) { const s = CF_SECTION[t.category] || 'operating'; if (t.kind === 'revenue') sec[s].in += t.amount; else sec[s].out += t.amount; }
+  for (const t of tx) { const s = cfSection(t.category); if (t.kind === 'revenue') sec[s].in += t.amount; else sec[s].out += t.amount; }
   const opening = cashPosition(ids, ymd(addDays(parseD(from), -1)));
   const net = sum(Object.values(sec), s => s.in - s.out);
   return { sec, opening, net, closing: opening + net };
@@ -655,3 +670,135 @@ function kpiStatus(k) {
   return good ? 'good' : near ? 'warn' : 'bad';
 }
 function fmtKpi(k, v) { if (k.unit === '$') return money(v, { compact: true }); if (k.unit === '%') return v.toFixed(1) + '%'; return (Math.round(v * 10) / 10).toLocaleString('en-US') + (k.unit && k.unit !== '#' ? ' ' + k.unit : ''); }
+
+/* =====================================================================
+   FINANCIAL SYSTEM — IFRS / SFRS(I) statements from the ledger (Invictus model layout)
+   The ledger is cash-basis; statements are management statements, not audited accounts.
+   Rates and policies live in state.settings.fin (Financial System → Assumptions).
+   ===================================================================== */
+const IFRS_PL_OPEX = ['Marketing expenses', 'Distribution & logistics', 'Employee benefits expense', 'Professional fees', 'Occupancy & utilities', 'Technology & subscriptions', 'Travel & transport', 'Research & development', 'Other operating expenses'];
+function finSet() { return state.settings.fin || {}; }
+// Straight-line depreciation on capital purchases (useful life is an assumption).
+function depreciation(ids, from, to) {
+  const life = Math.max(1, Number(finSet().usefulLifeYears) || 5) * 12;
+  const [f, t] = [parseD(from), parseD(to)];
+  let total = 0;
+  for (const x of txIn(ids, null, to)) {
+    if (cfSection(x.category) !== 'investing' || x.kind !== 'expense') continue;
+    const start = parseD(x.date); const monthly = x.amount / life;
+    const mFrom = Math.max(0, (f.getFullYear() - start.getFullYear()) * 12 + f.getMonth() - start.getMonth());
+    const mTo = Math.min(life, (t.getFullYear() - start.getFullYear()) * 12 + t.getMonth() - start.getMonth() + 1);
+    if (mTo > mFrom) total += monthly * (mTo - mFrom);
+  }
+  return total;
+}
+function ifrsPL(ids, from, to) {
+  const tx = txIn(ids, from, to).filter(t => !isNonPL(t.category));
+  const by = {};
+  for (const t of tx) { const l = coaLine(t.category); by[l] = (by[l] || 0) + (t.kind === 'revenue' ? t.amount : -t.amount); }
+  const g = l => by[l] || 0;
+  const revenue = g('Revenue'), cos = g('Cost of sales'), gross = revenue + cos, other = g('Other income');
+  const opex = IFRS_PL_OPEX.map(l => [l, g(l)]); const opexTotal = sum(opex, o => o[1]);
+  const ebitda = gross + other + opexTotal;
+  const da = -depreciation(ids, from, to);
+  const ebit = ebitda + da;
+  const finInc = g('Finance income'), finCost = g('Finance costs');
+  const pbt = ebit + finInc + finCost;
+  const tax = -sgTax(pbt).tax;
+  const profit = pbt + tax;
+  return { revenue, cos, gross, grossPct: revenue ? gross / revenue * 100 : 0, other, opex, opexTotal, ebitda, da, ebit, finInc, finCost, pbt, tax, profit, netPct: revenue ? profit / revenue * 100 : 0 };
+}
+function ifrsSFP(ids, asOf) {
+  const b = balanceSheet(ids, asOf);
+  const accDep = depreciation(ids, '2000-01-01', asOf);
+  const ppe = b.fixed - accDep;
+  const cash = b.cash, recv = b.ar;
+  const nonCurrent = ppe, current = cash + recv, assets = nonCurrent + current;
+  const payables = b.ap, borrowings = b.loans, liab = payables + borrowings;
+  const capital = b.capital, retained = assets - liab - capital;
+  return { ppe, nonCurrent, recv, cash, current, assets, capital, retained, equity: capital + retained, payables, borrowings, liab, total: capital + retained + liab, check: assets - (capital + retained + liab) };
+}
+// IAS 7 indirect presentation. Operating cash is taken from the bank ledger; the reconciling line shows the difference.
+function ifrsCF(ids, from, to) {
+  const p = ifrsPL(ids, from, to); const c = cashFlow(ids, from, to);
+  const operating = c.sec.operating.in - c.sec.operating.out;
+  const investing = c.sec.investing.in - c.sec.investing.out;
+  const financing = c.sec.financing.in - c.sec.financing.out;
+  const pbtCash = p.pbt - p.tax; // tax is an estimate, not yet paid
+  return { pbt: p.pbt, da: -p.da, workingCapital: operating - p.pbt + p.da, operating, investing, financing, net: operating + investing + financing, opening: c.opening, closing: c.opening + operating + investing + financing, pbtCash };
+}
+/* Singapore corporate income tax estimate (rates are assumptions to verify each Budget). */
+function sgTax(chargeable, ya) {
+  const fs = finSet(); const rate = Number(fs.citRate) || 0;
+  ya = ya || CUR_YEAR + 1;
+  const ci = Math.max(0, chargeable || 0);
+  const firstYA = Number(fs.firstYA) || ya;
+  const sute = Number(fs.useSUTE) && ya >= firstYA && ya < firstYA + 3;
+  const [p1, p2] = sute ? [Number(fs.sute1) || 0, Number(fs.sute2) || 0] : [Number(fs.pte1) || 0, Number(fs.pte2) || 0];
+  const [b1, b2] = sute ? [100000, 100000] : [10000, 190000];
+  const exempt = Math.min(ci, b1) * p1 + Math.min(Math.max(ci - b1, 0), b2) * p2;
+  const gross = Math.max(0, ci - exempt) * rate;
+  const rebate = Math.min(gross * (Number(fs.rebatePct) || 0), Number(fs.rebateCap) || Infinity);
+  return { chargeable: ci, scheme: sute ? 'Start-up tax exemption' : 'Partial tax exemption', exempt, taxable: Math.max(0, ci - exempt), rate, gross, rebate, tax: Math.max(0, gross - rebate) };
+}
+function gstStatus(ids) {
+  const fs = finSet(); const rate = Number(fs.gstRate) || 0;
+  const first = lastNMonths(12)[0];
+  const turnover = sum(txIn(ids, monthRange(first.y, first.m)[0], TODAY_S).filter(t => t.kind === 'revenue' && (coaAcct(t.category) || {}).gst === 'SR'), t => t.amount);
+  const registered = !!Number(fs.gstRegistered); const threshold = Number(fs.gstThreshold) || 0;
+  const q = Math.floor(CUR_MONTH / 3); const qFrom = ymd(new Date(CUR_YEAR, q * 3, 1));
+  const qtx = txIn(ids, qFrom, TODAY_S);
+  const output = registered ? sum(qtx.filter(t => t.kind === 'revenue' && (coaAcct(t.category) || {}).gst === 'SR'), t => t.amount) * rate : 0;
+  const input = registered ? sum(qtx.filter(t => t.kind === 'expense' && (coaAcct(t.category) || {}).gst === 'TX'), t => t.amount) * rate : 0;
+  return { registered, rate, threshold, turnover, mustRegister: !registered && threshold && turnover > threshold, quarter: 'Q' + (q + 1) + ' ' + CUR_YEAR, output, input, net: output - input };
+}
+
+/* =====================================================================
+   FINANCIAL OVERVIEW — short report for the CEO and investors, with notes on each point
+   ===================================================================== */
+const OVERVIEW_POINTS = [
+  ['revenue', 'Revenue'], ['gross', 'Gross profit'], ['costs', 'Operating costs'], ['profit', 'Net profit'], ['cash', 'Cash in bank'], ['runway', 'Runway'],
+];
+const NOTE_KINDS = { check: 'Please check', feedback: 'Need feedback' };
+function overviewPeriod(key) {
+  const lm = lastNMonths(2)[0];
+  if (key === 'last_month') { const [f, t] = monthRange(lm.y, lm.m); const pm = lastNMonths(3)[0]; const [pf, pt] = monthRange(pm.y, pm.m); return { key, label: MONTHS_L[lm.m] + ' ' + lm.y, from: f, to: t, prevFrom: pf, prevTo: pt, prevLabel: MONTHS_L[pm.m] }; }
+  if (key === 'quarter') { const q = Math.floor(CUR_MONTH / 3); const f = ymd(new Date(CUR_YEAR, q * 3, 1)); const pf = ymd(new Date(CUR_YEAR, q * 3 - 3, 1)); const pt = ymd(addDays(parseD(f), -1)); return { key, label: 'Q' + (q + 1) + ' ' + CUR_YEAR + ' to date', from: f, to: TODAY_S, prevFrom: pf, prevTo: pt, prevLabel: 'last quarter' }; }
+  if (key === 'ytd') return { key, label: 'Year to date ' + CUR_YEAR, from: CUR_YEAR + '-01-01', to: TODAY_S, prevFrom: (CUR_YEAR - 1) + '-01-01', prevTo: ymd(new Date(CUR_YEAR - 1, CUR_MONTH, TODAY.getDate())), prevLabel: 'same period ' + (CUR_YEAR - 1) };
+  const [f] = monthRange(CUR_YEAR, CUR_MONTH); const [pf] = monthRange(lm.y, lm.m); const pt = ymd(new Date(lm.y, lm.m, Math.min(TODAY.getDate(), new Date(lm.y, lm.m + 1, 0).getDate())));
+  return { key: 'month', label: MONTHS_L[CUR_MONTH] + ' ' + CUR_YEAR + ' to date', from: f, to: TODAY_S, prevFrom: pf, prevTo: pt, prevLabel: 'same days last month' };
+}
+function overviewFigures(ids, per) {
+  const p = ifrsPL(ids, per.from, per.to), q = ifrsPL(ids, per.prevFrom, per.prevTo);
+  const r = cashRunway(ids); const cashPrev = cashPosition(ids, per.prevTo);
+  const pct = (a, b) => b ? (a - b) / Math.abs(b) * 100 : null;
+  return {
+    revenue: { value: p.revenue, prev: q.revenue, change: pct(p.revenue, q.revenue), good: 'up' },
+    gross: { value: p.gross, prev: q.gross, change: pct(p.gross, q.gross), good: 'up', sub: fmtPct(p.grossPct, 1) + ' margin' },
+    costs: { value: -p.opexTotal, prev: -q.opexTotal, change: pct(-p.opexTotal, -q.opexTotal), good: 'down' },
+    profit: { value: p.profit, prev: q.profit, change: pct(p.profit, q.profit), good: 'up', sub: fmtPct(p.netPct, 1) + ' net margin' },
+    cash: { value: r.cash, prev: cashPrev, change: pct(r.cash, cashPrev), good: 'up' },
+    runway: { value: r.months, runway: true, good: 'up', sub: money(r.burn, { compact: true }) + ' average monthly costs' },
+  };
+}
+function canSeeNote(n, u) { u = u || me(); return n.authorId === u.id || n.audience.includes(u.role) || can('overview.note', u); }
+function addReportNote(data) {
+  const u = me();
+  const n = Object.assign({ id: uid('rn'), authorId: u.id, createdAt: nowISO(), status: 'open', replies: [] }, data);
+  (state.reportNotes = state.reportNotes || []).unshift(n);
+  const label = (OVERVIEW_POINTS.find(p => p[0] === n.point) || [, n.point])[1];
+  audit('created', 'report_note', n.id, NOTE_KINDS[n.kind] + ' note on ' + label + ' (' + n.periodLabel + ') for ' + n.audience.map(roleLabel).join(' & '));
+  notify(state.users.filter(x => n.audience.includes(x.role) && x.active !== false).map(x => x.id), { type: 'report', title: NOTE_KINDS[n.kind] + ': ' + label, body: n.text.slice(0, 90) + ' — ' + u.name, link: { page: 'overview', id: n.id } });
+  return n;
+}
+function replyReportNote(n, text) {
+  const u = me();
+  n.replies.push({ id: uid('rr'), userId: u.id, at: nowISO(), text });
+  audit('commented', 'report_note', n.id, 'Replied to report note');
+  notify([n.authorId].concat(n.replies.map(r => r.userId)).filter(id => id !== u.id), { type: 'report', title: u.name + ' replied on the financial overview', body: text.slice(0, 90), link: { page: 'overview', id: n.id } });
+}
+function resolveReportNote(n) {
+  n.status = 'resolved'; n.resolvedBy = me().id; n.resolvedAt = nowISO();
+  audit('resolved', 'report_note', n.id, 'Marked report note as done');
+  if (n.authorId !== me().id) notify(n.authorId, { type: 'report', title: me().name + ' marked your note as done', body: n.text.slice(0, 90), link: { page: 'overview', id: n.id } });
+}

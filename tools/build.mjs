@@ -21,7 +21,7 @@ const fail = msg => { console.error('Build failed: ' + msg); process.exit(1); };
 
 // ORDER MATTERS: core → seed data → cloud storage → UI kit → views. views_misc.js boots the app, so it goes last.
 const JS = ['core.js', 'data.js', 'cloud.js', 'ui.js', 'views_dash.js', 'views_tasks.js', 'views_approvals.js',
-  'views_finance.js', 'views_org.js', 'views_reports.js', 'views_misc.js'];
+  'views_finance.js', 'views_org.js', 'views_reports.js', 'views_hub.js', 'views_misc.js'];
 
 const css = readFileSync(join(src, 'styles.css'), 'utf8');
 const js = JS.map(f => `/* ===== ${f} ===== */\n` + readFileSync(join(src, f), 'utf8')).join('\n');
