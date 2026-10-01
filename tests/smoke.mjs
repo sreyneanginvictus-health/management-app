@@ -81,6 +81,15 @@ await E("login('u_kim')"); await E(`resolveReportNote(state.reportNotes.find(n =
 ok((await E(`JSON.stringify(state.reportNotes.find(n => n.id === '${nid}')) `)).includes('"status":"resolved"'), 'note resolved');
 await E("login('u_piseth')"); ok(!(await E(`canSeeNote(state.reportNotes.find(n => n.id === '${nid}'))`)), 'team members cannot see report notes');
 
+// 1g) Theme: follows the device until a person picks one; the choice is saved per person (Account & theme).
+await E("login('u_kim')");
+ok(!(await E("document.documentElement.hasAttribute('data-theme')")), 'theme defaults to the device setting');
+ok(await E("!!document.querySelector('.sidebar-foot [data-act=\"user-menu\"]')"), 'Account & theme button in the sidebar');
+await E("applyTheme('dark')");
+await E("login('u_piseth')"); ok(!(await E("document.documentElement.hasAttribute('data-theme')")), 'another person keeps the device setting');
+await E("login('u_kim')"); ok((await E("document.documentElement.getAttribute('data-theme')")) === 'dark', 'Kim gets her saved dark theme back');
+await E("applyTheme('')"); ok(!(await E("document.documentElement.hasAttribute('data-theme')")), 'Device setting clears the override');
+
 // 2) Expense > threshold routes Manager → Finance → CEO and creates a draft ledger entry on final approval.
 await E("login('u_ethan')");
 const a = await E("createApproval({type:'expense', title:'Test offsite', amount:2400, companyId:'c_lp', departmentId:'d_tech'}).id");

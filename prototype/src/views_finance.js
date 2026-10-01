@@ -40,15 +40,28 @@ function finOverview(ids) {
   let h = finFilterBar();
   h += '<div class="grid g4" style="margin-bottom:16px">' + financeTiles(ids) + '</div>';
   const ms = monthlySeries(ids, lastNMonths(12));
-  h += '<div class="grid g-2-1" style="margin-bottom:16px">' + card('Revenue vs expenses', revExpChart(ids), { sub: 'Last 12 months' }) + card('Net profit by month', lineChart({ labels: ms.map(m => m.label), series: [{ name: 'Net profit', color: 'var(--s1)', values: ms.map(m => m.net) }], area: true, zero: false, aria: 'Net profit by month' }), { sub: 'Revenue minus cost of sales and operating expenses' }) + '</div>';
   const expCats = Object.entries(p.exp).sort((a, b) => b[1] - a[1]);
-  h += '<div class="grid g2">' + card('Expenses by category · YTD', hbars(expCats.map(([k, v]) => ({ label: k, value: v, color: 'var(--s2)' })), { name: 'Expenses' })) +
-    card(ids.length > 1 ? 'Net profit by company · YTD' : 'Revenue by stream · YTD', ids.length > 1 ? hbars(ids.map(id => { const x = pnl([id], f, t); return { label: company(id).name, value: x.net, color: companyColor(id), sub: x.revenue ? fmtPct(x.net / x.revenue * 100, 1) + ' margin' : 'cost centre' }; }).sort((a, b) => b.value - a.value), { name: 'Net profit' }) : hbars(Object.entries(p.rev).map(([k, v]) => ({ label: k, value: v, color: 'var(--s1)' })), { name: 'Revenue' })) + '</div>';
+  h += '<div class="grid g-2-1" style="margin-bottom:16px">' +
+    card('Net profit by month', barChart({ labels: ms.map(m => m.label), series: [{ name: 'Net profit', color: v => v >= 0 ? 'var(--brand-2)' : 'var(--loss)', values: ms.map(m => m.net) }], mtdLast: true, noLegend: true, tipTitle: i => MONTHS_L[ms[i].m] + ' ' + ms[i].y, aria: 'Net profit by month' }),
+      { sub: 'Revenue minus cost of sales and operating expenses · ' + MONTHS[CUR_MONTH] + ' to date', actions: legendEl([{ name: 'Profit', color: 'var(--brand-2)' }, { name: 'Loss', color: 'var(--loss)' }]) }) +
+    card('Where the money went', hbars(expCats.slice(0, 8).map(([k, v]) => ({ label: k, value: v, color: 'var(--s1)' })), { name: 'Expenses' }),
+      { sub: 'Top expense categories · YTD', actions: '<button class="link" data-act="fin-tab" data-v="transactions">All ' + expCats.length + ' →</button>' }) + '</div>';
+  if (ids.length > 1) h += card('Net profit by company · YTD', hbars(ids.map(id => { const x = pnl([id], f, t); return { label: company(id).name, value: x.net, color: companyColor(id), sub: x.revenue ? fmtPct(x.net / x.revenue * 100, 1) + ' margin' : 'cost centre' }; }).sort((a, b) => b.value - a.value), { name: 'Net profit' })) + '<div style="height:16px"></div>';
+  const ledger = state.transactions.filter(x => ids.includes(x.companyId));
+  const postedYtd = ledger.filter(x => posted(x) && x.date >= f);
+  const latest = ledger.slice().sort((a, b) => (b.date + b.no) < (a.date + a.no) ? -1 : 1).slice(0, 5);
+  h += card('Latest entries', tableEl([
+    { h: 'Entry', nowrap: 1, v: x => '<span class="mono">' + esc(x.no) + '</span><div class="muted small">' + fmtDate(x.date) + '</div>' },
+    { h: 'Description', v: x => '<b>' + esc(x.memo) + '</b><div class="muted small">' + esc(x.party || '') + '</div>' },
+    { h: 'Category', v: x => esc(x.category) },
+    { h: 'Amount', r: 1, v: x => '<span class="' + (x.kind === 'revenue' ? 'up' : '') + '">' + (x.kind === 'revenue' ? '+' : '−') + money(Math.abs(x.amount)) + '</span>' },
+    { h: 'Status', v: x => '<span class="row" style="gap:6px;flex-wrap:nowrap">' + txStatusBadge(x) + '</span>' },
+  ], latest, { rowAct: 'open-tx' }), { flush: true, sub: ledger.length + ' entries · ' + money(sum(postedYtd.filter(x => x.kind === 'revenue'), x => x.amount), { compact: true }) + ' revenue · ' + money(sum(postedYtd.filter(x => x.kind === 'expense'), x => x.amount), { compact: true }) + ' expenses (posted, YTD)', actions: '<button class="link" data-act="fin-tab" data-v="transactions">Open Transactions →</button>' });
   return h;
 }
 
 /* ---------- transactions ---------- */
-function txStatusBadge(t) { return badge(titleCase(t.status), { draft: 'b-warn', posted: 'b-good', reversed: 'b-bad' }[t.status]) + (t.reversalOf ? ' ' + badge('Reversal', '', true) : t.adjustmentOf ? ' ' + badge('Adjustment', '', true) : ''); }
+function txStatusBadge(t) { return badge(titleCase(t.status), { draft: 'b-warn', posted: 'b-good', reversed: 'b-bad' }[t.status]) + (t.reversalOf ? ' ' + badge('Reversal', '') : t.adjustmentOf ? ' ' + badge('Adjustment', '') : ''); }
 function finTransactions(ids) {
   const st = App.ui.txStatus || 'all', kind = App.ui.txKind || 'all', cat = App.ui.txCat || 'all', q = App.ui.txQ || '', acct = App.ui.txAcct || 'all';
   let rows = state.transactions.filter(t => ids.includes(t.companyId));

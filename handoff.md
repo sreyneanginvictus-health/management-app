@@ -285,6 +285,8 @@ Everything here is stored in `state.settings` and editable in **Settings**. Repl
 
 ## 8. Design system
 
+> **Since 2026-10-01: "Ledger green"** from Claude Design — tokens, type and component rules are in `docs/design/ledger-green/design_handoff_negroni_ledger_green/README.md` and implemented in `prototype/src/styles.css` (light + dark token sets; theme switch under Account & theme, default = device setting, saved per person). Design brief for future design work: `docs/design/DESIGN_HANDOFF.md`; screenshots: `npm run screens`. The notes below describe the earlier indigo system and are kept for history.
+
 Visual direction came from the owner's references: deep indigo panels, soft lavender background, white rounded cards, pill badges, clean data-dense dashboards.
 
 | Token | Light | Dark |

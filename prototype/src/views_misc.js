@@ -265,9 +265,10 @@ Object.assign(ACT, {
 /* ---------- boot ---------- */
 // Demo mode: load from this browser and render. Cloud mode: sign in → open a workspace (async).
 (function boot() {
-  try { const t = localStorage.getItem('northstar-theme'); if (t) applyTheme(t); } catch (e) { }
   bindEvents();
+  loadTheme();
   if (Cloud.enabled) { cloudBoot(); return; }
   state = loadState();
+  loadTheme();
   render();
 })();

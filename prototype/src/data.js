@@ -89,7 +89,7 @@ function seedState() {
     D('d_mkt', 'Marketing', 'u_nadia'), D('d_ops', 'Operations & Programs', 'u_vannak'),
   ];
   /* ---------- people ---------- */
-  const COLORS = ['#4a3aa7', '#1c7c63', '#2a64c4', '#b4532a', '#8a3c8f', '#35706f', '#6a5acd', '#a23d5c', '#3d6b2f', '#7a5b12'];
+  const COLORS = ['#0F4D35', '#2E8C5F', '#2559B8', '#B4532A', '#6A3FA0', '#35706F', '#B57E14', '#A23D5C', '#3D6B2F', '#7A5B12', '#1C6B47'];
   let ci = 0;
   const P = (id, name, title, role, departmentId, managerId, scope) => {
     const initials = name.split(' ').map(x => x[0]).slice(0, 2).join('');

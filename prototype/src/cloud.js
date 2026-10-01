@@ -179,6 +179,7 @@ function cloudActivate(shared, updatedAt) {
   Cloud.savedAt = updatedAt ? new Date(updatedAt).getTime() : Date.now();
   Cloud.status = Cloud.ws.readOnly ? 'readonly' : 'saved';
   Cloud.screen = null;
+  loadTheme();
   App.ui = {}; App.route = { page: 'dashboard' }; App.drawer = null;
   try { runDeadlineSweep(); } catch (e) { console.error(e); }
   closeModal(); closeDrawer(); render(); window.scrollTo(0, 0);

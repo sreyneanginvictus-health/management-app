@@ -17,9 +17,9 @@ VIEWS.reports = function () {
   const fin = can('reports.finance');
   const tabs = [['overview', 'Overview'], ['companies', 'Company comparison'], ['departments', 'Departments'], ['projects', 'Projects'], ['team', 'Team'], ['operations', 'Operations']];
   if (fin) tabs.push(['finance', 'Financial']);
-  let h = pageHead('Reports & KPIs', 'Performance across ' + (ids.length === state.companies.length ? 'the entire holding' : ids.map(i => company(i).short).join(', ')) + (deptIds ? ' · limited to your department' : ''), '<button class="btn sm" data-act="copy-report">' + icon('copy') + 'Copy table as CSV</button>');
+  let h = pageHead('Reports & KPIs', 'Performance across ' + (ids.length === state.companies.length ? 'the entire holding' : ids.map(i => company(i).short).join(', ')) + (deptIds ? ' · limited to your department' : ''), selectEl('rf-period', periodOptions(), (App.ui.rf || {}).period || 'ytd', 'data-act-change="rf-period" aria-label="Period"') + '<button class="btn" data-act="copy-report">' + icon('copy') + 'Copy table as CSV</button>');
   const avail = activeCompanyIds();
-  h += '<div class="filters">' + (avail.length > 1 ? '<button class="chip ' + (!rf.companies.length ? 'on' : '') + '" data-act="rf-co" data-v="all">All companies</button>' + avail.map(id => '<button class="chip ' + (rf.companies.includes(id) ? 'on' : '') + '" data-act="rf-co" data-v="' + id + '"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + companyColor(id) + ';margin-right:6px"></i>' + esc(company(id).short) + '</button>').join('') : '') + '<span class="spacer"></span>' + selectEl('rf-period', periodOptions(), rf.period, 'data-act-change="rf-period" aria-label="Period"') + '</div>';
+  if (avail.length > 1) h += '<div class="filters">' + (avail.length > 1 ? '<button class="chip ' + (!rf.companies.length ? 'on' : '') + '" data-act="rf-co" data-v="all">All companies</button>' + avail.map(id => '<button class="chip ' + (rf.companies.includes(id) ? 'on' : '') + '" data-act="rf-co" data-v="' + id + '"><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + companyColor(id) + ';margin-right:6px"></i>' + esc(company(id).short) + '</button>').join('') : '') + '</div>';
   h += tabsEl(tabs, rf.tab, 'rf-tab');
   const [f, t] = periodRange(rf.period);
   const fn = { overview: repOverview, companies: repCompanies, departments: repDepartments, projects: repProjects, team: repTeam, operations: repOperations, finance: repFinance }[rf.tab] || repOverview;
@@ -42,14 +42,14 @@ function repOverview(ctx) {
   if (ctx.fin && !ctx.deptIds) { const p = pnl(ctx.ids, ctx.f, ctx.t), ly = pnl(ctx.ids, ...priorYear([ctx.f, ctx.t])); h += kpiTile('Revenue', money(p.revenue, { compact: true }), deltaTxt(p.revenue, ly.revenue, false, 'vs prior year'), { hero: true }) + kpiTile('Net profit', money(p.net, { compact: true }), '<span class="muted">' + fmtPct(p.revenue ? p.net / p.revenue * 100 : 0, 1) + ' margin</span>'); }
   else h += kpiTile('Tasks completed', String(done.length), '<span class="muted">in period</span>', { hero: true }) + kpiTile('Open tasks', String(tasks.filter(x => x.status !== 'completed').length), '<span class="muted">' + tasks.filter(isOverdue).length + ' overdue</span>');
   h += kpiTile('On-time delivery', done.length ? fmtPct(onTime / done.length * 100) : '—', '<span class="muted">' + done.length + ' tasks completed in period</span>') + kpiTile('KPIs on target', ks.filter(k => kpiStatus(k) === 'good').length + ' / ' + ks.length, '<span class="muted">' + ks.filter(k => kpiStatus(k) === 'bad').length + ' off target</span>') + '</div>';
-  h += '<div class="grid g2" style="margin-bottom:16px">' + (ctx.fin && !ctx.deptIds ? card('Revenue by company', revenueByCompanyChart(ctx.ids), { sub: 'Last 12 months' }) : card('Work completed', weeklyThroughput(tasks), { sub: 'Tasks approved per week' })) + card('KPI scorecard', kpiMini(ks), { flush: true, sub: ks.length + ' KPIs' }) + '</div>';
+  h += '<div class="grid g2" style="margin-bottom:16px">' + (ctx.fin && !ctx.deptIds ? card('Revenue by company', revenueByCompanyChart(ctx.ids), { sub: 'Last 12 months · ' + MONTHS[CUR_MONTH] + ' is month to date', actions: legendEl(ctx.ids.filter(id => !company(id).isHolding).slice(0, 4).map((id, i, a) => ({ name: company(id).name, color: a.length === 1 ? 'var(--s1)' : companyColor(id) }))) }) : card('Work completed', weeklyThroughput(tasks), { sub: 'Tasks approved per week' })) + card('KPI scorecard', kpiMini(ks), { flush: true, sub: ks.length + ' KPIs' }) + '</div>';
   h += '<div class="grid g2">' + card('Department on-time rate', deptPerfBars(ctx.ids, ctx.deptIds), { sub: 'Last 6 months' }) + card('Work status', taskStatusMix(tasks.filter(x => x.status !== 'completed'))) + '</div>';
   return h;
 }
 function revenueByCompanyChart(ids) {
   const rev = ids.filter(id => !company(id).isHolding).slice(0, 4);
   const months = lastNMonths(12);
-  return lineChart({ labels: months.map(m => MONTHS[m.m]), series: rev.map(id => ({ name: company(id).short, color: companyColor(id), values: monthlySeries([id], months).map(s => s.revenue) })), aria: 'Revenue by company' });
+  return lineChart({ labels: months.map(m => MONTHS[m.m]), series: rev.map((id, i) => ({ name: company(id).name, color: rev.length === 1 ? 'var(--s1)' : companyColor(id), values: monthlySeries([id], months).map(s => s.revenue) })), area: rev.length === 1, smooth: true, mtdLast: true, noLegend: true, aria: 'Revenue by company' }) + '<div class="muted small" style="margin-top:6px">' + MONTHS_L[CUR_MONTH] + ' is month to date.</div>';
 }
 function companyMetrics(ctx) {
   return ctx.ids.map(id => {

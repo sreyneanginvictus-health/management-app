@@ -15,18 +15,41 @@ function ovSentence(key, x, per) {
   return x.value === Infinity ? 'No recent costs, so no runway limit.' : 'At current spending, cash lasts about ' + fmtRunway(x.value) + '.';
 }
 function ovValue(key, x) { return key === 'runway' ? (x.value === Infinity ? '∞' : (x.value < 10 ? x.value.toFixed(1) : Math.round(x.value)) + ' mo') : money(x.value, { compact: true }); }
-function ovDelta(x, per) {
-  if (x.runway || x.change == null) return x.sub ? '<span class="muted">' + esc(x.sub) + '</span>' : '';
+function ovDelta(x) {
+  if (x.runway || x.change == null) return '';
   const good = x.good === 'down' ? x.change <= 0 : x.change >= 0;
-  return '<span class="' + (good ? 'up' : 'down') + '">' + (x.change >= 0 ? '▲ ' : '▼ ') + Math.abs(x.change).toFixed(1) + '%</span> <span class="muted">vs ' + esc(per.prevLabel) + '</span>' + (x.sub ? ' · <span class="muted">' + esc(x.sub) + '</span>' : '');
+  return deltaPill(x.change, good);
 }
 function noteHtml(n) {
   const u = me(); const mineToAnswer = n.audience.includes(u.role) && n.status === 'open';
   return '<div class="ov-note ' + n.kind + (n.status === 'resolved' ? ' done' : '') + '" id="note-' + n.id + '">' +
-    '<div class="row" style="gap:6px;flex-wrap:wrap">' + badge(NOTE_KINDS[n.kind], n.kind === 'feedback' ? 'b-warn' : 'b-info') + '<span class="muted small">for ' + n.audience.map(r => esc(roleLabel(r))).join(' & ') + ' · ' + esc(n.periodLabel) + '</span>' + (n.status === 'resolved' ? badge('Done', 'b-good') : '') + '</div>' +
+    '<div class="row" style="gap:8px;flex-wrap:wrap">' + badge(NOTE_KINDS[n.kind], n.kind === 'feedback' ? 'b-warn' : 'b-info') + '<span class="muted small">for ' + n.audience.map(r => esc(roleLabel(r))).join(' & ') + ' · ' + esc(n.periodLabel) + '</span>' + (n.status === 'resolved' ? badge('Done', 'b-good') : '') + '</div>' +
     '<div><b>' + esc(user(n.authorId).name) + ':</b> ' + esc(n.text) + '</div>' +
     n.replies.map(r => '<div class="ov-reply"><b>' + esc(user(r.userId).name) + ':</b> ' + esc(r.text) + ' <span class="muted small">' + ago(r.at) + '</span></div>').join('') +
-    (n.status === 'open' && canSeeNote(n) ? '<div class="row" style="gap:6px"><button class="btn sm" data-act="ov-reply" data-id="' + n.id + '">' + icon('send') + 'Reply</button>' + (mineToAnswer || n.authorId === u.id ? '<button class="btn sm ghost" data-act="ov-done" data-id="' + n.id + '">' + icon('ok') + 'Mark done</button>' : '') + '</div>' : '') + '</div>';
+    (n.status === 'open' && canSeeNote(n) ? '<div class="row" style="gap:8px"><button class="btn sm primary" data-act="ov-reply" data-id="' + n.id + '">' + icon('undo') + 'Reply</button>' + (mineToAnswer || n.authorId === u.id ? '<button class="btn sm" data-act="ov-done" data-id="' + n.id + '">' + icon('ok') + 'Mark done</button>' : '') + '</div>' : '') + '</div>';
+}
+// One report point as a card: icon + pills, label, big value, footnote, optional bar, plain sentence, notes, "+ Add note".
+function ovCard(key, x, per, notes, opt) {
+  opt = opt || {};
+  const label = OVERVIEW_POINTS.find(p => p[0] === key)[1];
+  const pn = notes.filter(n => n.point === key); const open = pn.filter(n => n.status === 'open'); const done = pn.length - open.length;
+  const foot = x.runway ? (x.sub || '') : (x.change != null ? 'vs ' + per.prevLabel : '') + (x.sub ? (x.change != null ? ' · ' : '') + x.sub : '');
+  let extra = '';
+  if (key === 'gross' && x.marginPct != null) extra = '<div class="progress" style="margin:8px 0 2px"><i style="width:' + clamp(x.marginPct, 0, 100) + '%;background:var(--brand-2)"></i></div>';
+  const alertM = Number(state.settings.cashAlertMonths) || 0;
+  if (key === 'runway' && x.value !== Infinity) {
+    const scale = 12;
+    extra = '<div class="progress" style="margin:10px 0 6px"><i style="width:' + clamp(x.value / scale * 100, 0, 100) + '%"></i>' + (alertM ? '<span class="mark" style="left:' + (alertM / scale * 100) + '%;background:var(--danger)"></span>' : '') + '</div><div class="row muted small" style="justify-content:space-between"><span>Alert at ' + alertM + ' mo ' + cfg() + '</span><span>' + scale + ' mo</span></div>';
+  }
+  const right = (open.length ? '<span class="badge b-warn">' + open.length + ' open note' + (open.length > 1 ? 's' : '') + '</span>' : '') +
+    (key === 'runway' ? (x.value === Infinity ? '' : x.value >= alertM ? '<span class="pill good">Above alert</span>' : '<span class="pill bad">Below alert</span>') : ovDelta(x));
+  return '<section class="card ov-point' + (opt.hero ? ' hero' : '') + (opt.cls ? ' ' + opt.cls : '') + '">' +
+    '<div class="ov-head">' + (opt.hero ? '<span></span>' : '<span class="ov-ic">' + icon(OV_ICON[key]) + '</span>') + '<span class="row" style="gap:6px">' + right + '</span></div>' +
+    '<div class="lbl">' + label + '</div><div class="ov-val">' + ovValue(key, x) + '</div>' + (foot ? '<div class="foot">' + esc(foot) + '</div>' : '') + extra +
+    '<p class="ov-say">' + esc(ovSentence(key, x, per)) + '</p>' +
+    open.map(noteHtml).join('') + (done ? '<button class="btn sm ghost" style="align-self:flex-start" data-act="ov-show-done" data-v="' + key + '">' + done + ' done note' + (done > 1 ? 's' : '') + '</button>' : '') +
+    (App.ui.ovDone === key ? pn.filter(n => n.status !== 'open').map(noteHtml).join('') : '') +
+    (can('overview.note') ? '<button class="ov-add" data-act="ov-note" data-v="' + key + '">+ Add note for CEO / investor</button>' : '') + '</section>';
 }
 VIEWS.overview = function () {
   const per = overviewPeriod(App.ui.ovPer || 'last_month');
@@ -35,21 +58,12 @@ VIEWS.overview = function () {
   const notes = (state.reportNotes || []).filter(n => canSeeNote(n));
   const forMe = notes.filter(n => n.status === 'open' && n.audience.includes(me().role));
   let h = pageHead('Financial Overview', 'Short summary for the CEO and investors · ' + esc(per.label) + ' · ' + esc(state.settings.currency) + ', IFRS / SFRS(I)', segEl(OV_PERIODS, per.key, 'ov-per'));
-  if (forMe.length) h += noticeEl('<b>' + forMe.length + ' note' + (forMe.length > 1 ? 's' : '') + ' waiting for you.</b> ' + forMe.map(n => '<a href="#" data-act="ov-jump" data-id="' + n.id + '">' + esc((OVERVIEW_POINTS.find(p => p[0] === n.point) || [, ''])[1]) + ' — ' + esc(NOTE_KINDS[n.kind]) + '</a>').join(' · '), 'warn', 'flag') + '<div style="height:14px"></div>';
-  h += '<div class="ov-grid">' + OVERVIEW_POINTS.map(([key, label], i) => {
-    const x = F[key]; const pn = notes.filter(n => n.point === key);
-    const open = pn.filter(n => n.status === 'open'); const done = pn.length - open.length;
-    return '<section class="card ov-point' + (i === 0 ? ' hero' : '') + '">' +
-      '<div class="row" style="gap:10px"><span class="ov-ic">' + icon(OV_ICON[key]) + '</span><span class="strong">' + label + '</span><span class="spacer"></span>' + (open.length ? badge(open.length + ' open', 'b-warn') : '') + '</div>' +
-      '<div class="ov-val">' + ovValue(key, x) + '</div><div class="delta small">' + ovDelta(x, per) + '</div>' +
-      '<p class="ov-say">' + esc(ovSentence(key, x, per)) + '</p>' +
-      open.map(noteHtml).join('') + (done ? '<button class="btn sm ghost" data-act="ov-show-done" data-v="' + key + '">' + done + ' done note' + (done > 1 ? 's' : '') + '</button>' : '') +
-      (App.ui.ovDone === key ? pn.filter(n => n.status !== 'open').map(noteHtml).join('') : '') +
-      (can('overview.note') ? '<div><button class="btn sm' + (i === 0 ? '' : ' ghost') + '" data-act="ov-note" data-v="' + key + '">' + icon('plus') + 'Add note for CEO / investor</button></div>' : '') +
-      '</section>';
-  }).join('') + '</div>';
+  if (forMe.length) h += noticeEl('<b>' + forMe.length + ' note' + (forMe.length > 1 ? 's' : '') + ' waiting for you.</b> ' + forMe.map(n => '<a href="#" data-act="ov-jump" data-id="' + n.id + '">' + esc((OVERVIEW_POINTS.find(p => p[0] === n.point) || [, ''])[1]) + ' — ' + esc(NOTE_KINDS[n.kind]) + '</a>').join(' · '), 'warn', 'flag') + '<div style="height:16px"></div>';
   const ms = monthlySeries(ids, lastNMonths(12));
-  h += '<div style="height:16px"></div>' + card('Revenue and costs, last 12 months', barChart({ labels: ms.map(m => m.label), series: [{ name: 'Revenue', color: 'var(--s1)', values: ms.map(m => m.revenue) }, { name: 'Costs', color: 'var(--s2)', values: ms.map(m => m.expenses) }], tipTitle: i => MONTHS_L[ms[i].m] + ' ' + ms[i].y }), { sub: 'Cash basis, posted entries' });
+  h += '<div class="ov-top">' + ovCard('revenue', F.revenue, per, notes, { hero: true }) +
+    card('Revenue and costs, last 12 months', barChart({ labels: ms.map(m => m.label), series: [{ name: 'Revenue', color: 'var(--s1)', values: ms.map(m => m.revenue) }, { name: 'Costs', color: 'var(--s2)', values: ms.map(m => m.expenses) }], tipTitle: i => MONTHS_L[ms[i].m] + ' ' + ms[i].y, mtdLast: true, noLegend: true, height: 230 }) + '<div class="muted small" style="margin-top:6px">' + MONTHS_L[CUR_MONTH] + ' is month to date.</div>',
+      { sub: 'Cash basis, posted entries', actions: legendEl([{ name: 'Revenue', color: 'var(--s1)' }, { name: 'Costs', color: 'var(--s2)' }]) }) + '</div>';
+  h += '<div class="ov-grid">' + ovCard('gross', F.gross, per, notes, { cls: 'tall' }) + ovCard('costs', F.costs, per, notes) + ovCard('profit', F.profit, per, notes) + ovCard('cash', F.cash, per, notes) + ovCard('runway', F.runway, per, notes) + '</div>';
   return h;
 };
 Object.assign(ACT, {

@@ -45,7 +45,7 @@ const ICONS = {
   list: '<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
 };
 function icon(n, cls) { return '<svg class="' + (cls || '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[n] || '') + '</svg>'; }
-const LOGO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.4 6.9 7.1.2-5.7 4.3 2.1 7-5.9-4.2-5.9 4.2 2.1-7L2.5 9.6l7.1-.2z" fill="#3b3494"/></svg>';
+const LOGO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.4 6.9 7.1.2-5.7 4.3 2.1 7-5.9-4.2-5.9 4.2 2.1-7L2.5 9.6l7.1-.2z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>';
 
 /* ---------- small components ---------- */
 function avatar(u, size) { u = typeof u === 'string' ? user(u) : u; return '<span class="avatar ' + (size || '') + '" style="background:' + u.color + '" title="' + esc(u.name) + '">' + esc(u.initials) + '</span>'; }
@@ -61,19 +61,24 @@ function card(title, body, opt) {
   return '<section class="card ' + (opt.cls || '') + '"' + (opt.id ? ' id="' + opt.id + '"' : '') + '>' + (title ? '<div class="card-h"><div><h3>' + title + '</h3>' + (opt.sub ? '<div class="sub">' + opt.sub + '</div>' : '') + '</div>' + (opt.actions ? '<div class="row">' + opt.actions + '</div>' : '') + '</div>' : '') + '<div class="card-b ' + (opt.flush ? 'flush' : '') + '">' + body + '</div></section>';
 }
 function kpiTile(label, value, delta, opt) {
-  opt = opt || {};
-  return '<div class="card kpi ' + (opt.hero ? 'hero' : '') + '"' + (opt.act ? ' data-act="' + opt.act + '" style="cursor:pointer"' : '') + '><div class="lbl">' + (opt.icon ? icon(opt.icon).replace('<svg', '<svg width="14" height="14"') : '') + esc(label) + '</div><div class="kpi-val">' + value + '</div>' + (delta ? '<div class="delta">' + delta + '</div>' : '') + '</div>';
+  opt = opt || {}; delta = delta || ''; let pill = opt.pill || '';
+  if (!pill) { const m = delta.match(/<span class="pill[^"]*">[^<]*<\/span>/); if (m) { pill = m[0]; delta = delta.replace(m[0], '').trim(); } }
+  if (!pill) { const m = delta.match(/<span class="(up|down)">\s*([▲▼]?)\s*([^<]*)<\/span>/); if (m) { pill = '<span class="pill ' + (m[1] === 'up' ? 'good' : 'bad') + '">' + (m[2] === '▼' ? '−' : m[2] === '▲' ? '+' : '') + esc(m[3]) + '</span>'; delta = delta.replace(m[0], '').trim(); } }
+  const top = opt.icon || pill ? '<div class="kpi-top">' + (opt.icon ? '<span class="kpi-ic">' + icon(opt.icon) + '</span>' : '<span></span>') + pill + '</div>' : '';
+  return '<div class="card kpi ' + (opt.hero ? 'hero' : '') + '"' + (opt.act ? ' data-act="' + opt.act + '" style="cursor:pointer"' : '') + '>' + top + '<div class="lbl">' + esc(label) + '</div><div class="kpi-val">' + value + '</div>' + (delta ? '<div class="delta">' + delta + '</div>' : '') + '</div>';
 }
+// Delta pill: colour says good or bad (costs going up are bad), the sign says up or down.
+function deltaPill(d, good) { return '<span class="pill ' + (good ? 'good' : 'bad') + '">' + (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(1) + '%</span>'; }
 function deltaTxt(cur, prev, invert, suffix) {
   if (!prev) return '<span class="muted">' + (suffix || '') + '</span>';
   const d = (cur - prev) / Math.abs(prev) * 100; const good = invert ? d < 0 : d > 0;
-  return '<span class="' + (good ? 'up' : 'down') + '">' + (d >= 0 ? '▲ ' : '▼ ') + Math.abs(d).toFixed(1) + '%</span> <span class="muted">' + (suffix || '') + '</span>';
+  return deltaPill(d, good) + ' <span class="muted">' + (suffix || '') + '</span>';
 }
 function emptyState(t) { return '<div class="empty">' + esc(t) + '</div>'; }
 function selectEl(id, opts, val, extra) {
   return '<select class="select" id="' + id + '" ' + (extra || '') + '>' + opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return '<option value="' + esc(v) + '"' + (String(v) === String(val) ? ' selected' : '') + '>' + esc(l) + '</option>'; }).join('') + '</select>';
 }
-function tabsEl(items, cur, act) { return '<div class="tabs" role="tablist">' + items.map(([k, l, n]) => '<button role="tab" class="' + (k === cur ? 'on' : '') + '" data-act="' + act + '" data-v="' + k + '">' + esc(l) + (n != null ? '<span class="count">' + n + '</span>' : '') + '</button>').join('') + '</div>'; }
+function tabsEl(items, cur, act) { return '<div class="tabs" role="tablist">' + items.map(([k, l, n]) => '<button role="tab" class="' + (k === cur ? 'on' : '') + (typeof n === 'number' ? ' numc' : '') + '" data-act="' + act + '" data-v="' + k + '">' + esc(l) + (n != null ? '<span class="count">' + n + '</span>' : '') + '</button>').join('') + '</div>'; }
 function segEl(items, cur, act) { return '<div class="seg">' + items.map(([k, l]) => '<button class="' + (k === cur ? 'on' : '') + '" data-act="' + act + '" data-v="' + k + '">' + l + '</button>').join('') + '</div>'; }
 function noticeEl(text, kind, ic) { return '<div class="notice ' + (kind || '') + '">' + icon(ic || 'info') + '<div>' + text + '</div></div>'; }
 function companyOptions(ids, withAll) { const o = (ids || activeCompanyIds()).map(id => [id, company(id).name]); return withAll ? [['all', 'All companies']].concat(o) : o; }
@@ -103,26 +108,28 @@ function barChart(o) {
   const all = o.series.flatMap(s => s.values);
   let max = Math.max(0, ...all), min = Math.min(0, ...all);
   if (o.stacked) { max = Math.max(0, ...o.labels.map((_, i) => sum(o.series, s => Math.max(0, s.values[i])))); }
-  const top = niceMax(max), bot = min < 0 ? -niceMax(-min) : 0;
+  let top = niceMax(max), bot = min < 0 ? -niceMax(-min) : 0;
+  if (bot < 0 && max > 0) { const m = Math.max(top, -bot); top = m; bot = -m; } // symmetric around zero: +x / 0 / −x
   const y = v => T + (H - T - B) * (1 - (v - bot) / (top - bot));
   const fmt = o.fmt || (v => money(v, { compact: true }));
-  const gw = (W - L - Rm) / n; const pad = gw * (n > 8 ? .22 : .28); const bw = o.stacked ? gw - pad * 2 : Math.max(2, (gw - pad * 2 - (sN - 1) * 2) / sN);
+  const gw = (W - L - Rm) / n; const pad = gw * (n > 8 ? .22 : .28); const bw = o.stacked ? gw - pad * 2 : Math.max(2, Math.min(18, (gw - pad * 2 - (sN - 1) * 4) / sN));
+  const used = o.stacked ? bw : bw * sN + (sN - 1) * 4; const padL = (gw - used) / 2;
   let g = '';
   const ticks = 4;
   for (let i = 0; i <= ticks; i++) { const v = bot + (top - bot) * i / ticks; g += '<line class="gridl" x1="' + L + '" x2="' + (W - Rm) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (L - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + esc(fmt(v)) + '</text>'; }
   if (bot < 0) g += '<line class="axis" x1="' + L + '" x2="' + (W - Rm) + '" y1="' + y(0) + '" y2="' + y(0) + '"/>';
-  const barPath = (x, v0, v1, w) => { const ya = y(v0), yb = y(v1); const up = yb < ya; const h = Math.abs(yb - ya); const r = Math.min(4, h, w / 2); if (h < .5) return ''; if (up) return 'M' + x + ',' + ya + 'V' + (yb + r) + 'Q' + x + ',' + yb + ' ' + (x + r) + ',' + yb + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + yb + ' ' + (x + w) + ',' + (yb + r) + 'V' + ya + 'Z'; return 'M' + x + ',' + ya + 'V' + (yb - r) + 'Q' + x + ',' + yb + ' ' + (x + r) + ',' + yb + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + yb + ' ' + (x + w) + ',' + (yb - r) + 'V' + ya + 'Z'; };
+  const barPath = (x, v0, v1, w) => { const ya = y(v0), yb = y(v1); const up = yb < ya; const h = Math.abs(yb - ya); const r = Math.min(w / 2, h); if (h < .5) return ''; if (up) return 'M' + x + ',' + ya + 'V' + (yb + r) + 'Q' + x + ',' + yb + ' ' + (x + r) + ',' + yb + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + yb + ' ' + (x + w) + ',' + (yb + r) + 'V' + ya + 'Z'; return 'M' + x + ',' + ya + 'V' + (yb - r) + 'Q' + x + ',' + yb + ' ' + (x + r) + ',' + yb + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + yb + ' ' + (x + w) + ',' + (yb - r) + 'V' + ya + 'Z'; };
   o.labels.forEach((lab, i) => {
     const gx = L + gw * i;
     if (o.stacked) {
       let acc = 0;
-      o.series.forEach((s, si) => { const v = s.values[i]; if (v > 0) { const p = barPath(gx + pad, acc, acc + v, bw); g += '<path class="bar" d="' + p + '" fill="' + s.color + '"/>'; acc += v; if (si < sN - 1) g += '<line x1="' + (gx + pad) + '" x2="' + (gx + pad + bw) + '" y1="' + y(acc) + '" y2="' + y(acc) + '" stroke="var(--surface)" stroke-width="2"/>'; } });
-    } else o.series.forEach((s, si) => { const v = s.values[i]; g += '<path class="bar" d="' + barPath(gx + pad + si * (bw + 2), 0, v, bw) + '" fill="' + s.color + '"/>'; });
-    if (n <= 14 || i % 2 === 0) g += '<text x="' + (gx + gw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(lab) + '</text>';
-    const tip = tipHtml(o.tipTitle ? o.tipTitle(i) : lab, o.series.map(s => [s.color, s.name, fmt(s.values[i], true)]).concat(o.tipExtra ? o.tipExtra(i) : []));
+      o.series.forEach((s, si) => { const v = s.values[i]; if (v > 0) { const p = barPath(gx + padL, acc, acc + v, bw); g += '<path class="bar" d="' + p + '" fill="' + s.color + '"/>'; acc += v; if (si < sN - 1) g += '<line x1="' + (gx + padL) + '" x2="' + (gx + padL + bw) + '" y1="' + y(acc) + '" y2="' + y(acc) + '" stroke="var(--surface)" stroke-width="2"/>'; } });
+    } else o.series.forEach((s, si) => { const v = s.values[i]; const col = typeof s.color === 'function' ? s.color(v, i) : s.color; g += '<path class="bar" d="' + barPath(gx + padL + si * (bw + 4), 0, v, bw) + '" fill="' + col + '"' + (o.mtdLast && i === n - 1 ? ' fill-opacity=".4"' : '') + '/>'; });
+    if (n <= 14 || i % 2 === 0) g += '<text class="lab" x="' + (gx + gw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(lab) + '</text>';
+    const tip = tipHtml(o.tipTitle ? o.tipTitle(i) : lab, o.series.map(s => [typeof s.color === 'function' ? s.color(s.values[i], i) : s.color, s.name, fmt(s.values[i], true)]).concat(o.tipExtra ? o.tipExtra(i) : []));
     g += '<rect class="hit" x="' + gx + '" y="' + T + '" width="' + gw + '" height="' + (H - T - B) + '" data-tip="' + tip + '"' + (o.act ? ' data-act="' + o.act + '" data-i="' + i + '"' : '') + '/>';
   });
-  return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(o.aria || 'Bar chart') + '">' + g + '</svg>' + (o.noLegend ? '' : '<div style="margin-top:8px">' + legendEl(o.series) + '</div>');
+  return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(o.aria || 'Bar chart') + '">' + g + '</svg>' + (o.noLegend ? '' : '<div style="margin-top:8px">' + legendEl(o.legend || o.series) + '</div>');
 }
 function lineChart(o) {
   const W = 640, H = o.height || 220, L = 52, Rm = 12, T = 10, B = 24;
@@ -138,16 +145,35 @@ function lineChart(o) {
   if (o.target != null) g += '<line x1="' + L + '" x2="' + (W - Rm) + '" y1="' + y(o.target) + '" y2="' + y(o.target) + '" stroke="var(--muted)" stroke-dasharray="4 4"/><text x="' + (W - Rm) + '" y="' + (y(o.target) - 5) + '" text-anchor="end">Target ' + esc(fmt(o.target)) + '</text>';
   o.series.forEach((s, si) => {
     const pts = s.values.map((v, i) => [x(i), y(v)]);
-    if (o.area && si === 0) g += '<path d="M' + pts.map(p => p.join(',')).join('L') + 'L' + x(n - 1) + ',' + y(Math.max(bot, 0)) + 'L' + x(0) + ',' + y(Math.max(bot, 0)) + 'Z" fill="' + s.color + '" fill-opacity=".10"/>';
-    g += '<path d="M' + pts.map(p => p.join(',')).join('L') + '" fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"' + (s.dash ? ' stroke-dasharray="5 4"' : '') + '/>';
-    const lp = pts[pts.length - 1]; g += '<circle cx="' + lp[0] + '" cy="' + lp[1] + '" r="4" fill="' + s.color + '" stroke="var(--surface)" stroke-width="2"/>';
+    if (o.area && si === 0) g += '<path d="' + linePath(o.mtdLast && pts.length > 2 ? pts.slice(0, -1) : pts, o.smooth) + 'L' + x(o.mtdLast && n > 2 ? n - 2 : n - 1) + ',' + y(Math.max(bot, 0)) + 'L' + x(0) + ',' + y(Math.max(bot, 0)) + 'Z" fill="' + s.color + '" fill-opacity=".10"/>';
+    const solid = o.mtdLast && pts.length > 2 ? pts.slice(0, -1) : pts;
+    g += '<path d="' + linePath(solid, o.smooth) + '" fill="none" stroke="' + s.color + '" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"' + (s.dash ? ' stroke-dasharray="5 4"' : '') + '/>';
+    if (solid !== pts) g += '<path d="M' + pts.slice(-2).map(p => p.join(',')).join('L') + '" fill="none" stroke="' + s.color + '" stroke-width="2.5" stroke-dasharray="4 5" stroke-linecap="round"/>';
+    if (!o.mtdLast) { const lp = pts[pts.length - 1]; g += '<circle cx="' + lp[0] + '" cy="' + lp[1] + '" r="4" fill="' + s.color + '" stroke="var(--surface)" stroke-width="2"/>'; }
   });
   o.labels.forEach((lab, i) => {
-    if (n <= 13 || i % 2 === 0) g += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle') + '">' + esc(lab) + '</text>';
+    if (n <= 13 || i % 2 === 0) g += '<text class="lab" x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle') + '">' + esc(lab) + '</text>';
     const w = (W - L - Rm) / Math.max(1, n - 1);
     g += '<rect class="hit" x="' + Math.max(L, x(i) - w / 2) + '" y="' + T + '" width="' + w + '" height="' + (H - T - B) + '" data-tip="' + tipHtml(lab, o.series.map(s => [s.color, s.name, fmt(s.values[i], true)])) + '"/>';
   });
   return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(o.aria || 'Line chart') + '">' + g + '</svg>' + (o.noLegend || o.series.length < 2 ? '' : '<div style="margin-top:8px">' + legendEl(o.series, true) + '</div>');
+}
+// Polyline, or a smooth curve through the points (Catmull-Rom → cubic Bézier).
+function linePath(pts, smooth) {
+  if (!smooth || pts.length < 3) return 'M' + pts.map(p => p.join(',')).join('L');
+  let d = 'M' + pts[0].join(',');
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += 'C' + (p1[0] + (p2[0] - p0[0]) / 6) + ',' + (p1[1] + (p2[1] - p0[1]) / 6) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6) + ',' + (p2[1] - (p3[1] - p1[1]) / 6) + ' ' + p2.join(',');
+  }
+  return d;
+}
+// Donut: segments [{label, value, color}], 26px ring with small gaps.
+function donutChart(segs, size) {
+  size = size || 180; const r = (size - 26) / 2, c = 2 * Math.PI * r, tot = sum(segs, x => x.value) || 1, gap = segs.length > 1 ? 3 : 0;
+  let off = 0, g = '';
+  for (const x of segs) { const len = Math.max(0, x.value / tot * c - gap); g += '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="' + x.color + '" stroke-width="26" stroke-dasharray="' + len + ' ' + (c - len) + '" stroke-dashoffset="' + (-off) + '" transform="rotate(-90 ' + size / 2 + ' ' + size / 2 + ')" data-tip="' + tipHtml(x.label, [[x.color, 'Amount', money(x.value)]]) + '"/>'; off += x.value / tot * c; }
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" role="img" aria-label="Donut chart">' + g + '</svg>';
 }
 function sparkline(vals, color, w, h) {
   w = w || 110; h = h || 30; const mx = Math.max(...vals), mn = Math.min(...vals); const sp = (mx - mn) || 1;
@@ -233,7 +259,7 @@ function sidebarHtml() {
     h += vis.map(([p, l, ic]) => '<button class="nav-item ' + (App.route.page === p ? 'active' : '') + '" data-act="nav" data-page="' + p + '"' + (App.route.page === p ? ' aria-current="page"' : '') + '>' + icon(ic) + '<span>' + l + '</span>' + (counts[p] ? '<span class="count">' + counts[p] + '</span>' : '') + '</button>').join('');
   }
   const u = me();
-  h += '<div class="sidebar-foot"><div class="perm-note">Signed in as <b style="color:#fff">' + esc(roleLabel(u.role)) + '</b><br>Access: ' + esc(SCOPES[u.scope]) + '<br>' + ALL_PERMS.filter(p => can(p)).length + ' of ' + ALL_PERMS.length + ' permissions</div></div>';
+  h += '<div class="sidebar-foot"><div><b>Signed in as ' + esc(roleLabel(u.role)) + '</b><div class="perm-note">' + esc(SCOPES[u.scope]) + ' · ' + ALL_PERMS.filter(p => can(p)).length + ' of ' + ALL_PERMS.length + ' permissions</div></div><button class="btn sm" data-act="user-menu">Account &amp; theme</button></div>';
   return h;
 }
 function topbarHtml() {
@@ -313,7 +339,12 @@ function renderSearch(q) {
 }
 
 /* ---------- theme ---------- */
-function applyTheme(t) { if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); try { localStorage.setItem('northstar-theme', t || ''); } catch (e) { } }
+// Theme choice is saved per person ('' = follow the device's light/dark setting).
+function themeKey() { return 'negroni-theme:' + (typeof Cloud !== 'undefined' && Cloud.user ? 'acct:' + Cloud.user.id : 'p:' + ((state && state.session && state.session.userId) || 'guest')); }
+function savedTheme() { try { return localStorage.getItem(themeKey()) || ''; } catch (e) { return ''; } }
+function setThemeAttr(t) { if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); }
+function applyTheme(t) { setThemeAttr(t); try { if (t) localStorage.setItem(themeKey(), t); else localStorage.removeItem(themeKey()); } catch (e) { } }
+function loadTheme() { setThemeAttr(savedTheme()); }
 
 /* ---------- event wiring ---------- */
 const ACT = {};
@@ -370,12 +401,12 @@ Object.assign(ACT, {
   open: el => { const sb = document.getElementById('search-results'); if (sb) sb.hidden = true; const s = document.getElementById('gsearch'); if (s) s.value = ''; openEntity(el.dataset.t, el.dataset.id); },
   page: el => { App.ui[el.dataset.k] = Number(el.dataset.v); render(); },
   'user-menu': () => {
-    const u = me(); let t = ''; try { t = localStorage.getItem('northstar-theme') || ''; } catch (e) { }
+    const u = me(); const t = savedTheme();
     const byRole = ROLE_KEYS.map(r => [r, state.users.filter(x => x.role === r && x.active !== false)]);
-    openModal(modalShell('Account', '<div class="row" style="gap:12px;margin-bottom:16px">' + avatar(u, 'lg') + '<div><div class="strong" style="font-size:16px">' + esc(u.name) + '</div><div class="muted">' + esc(u.title) + ' · ' + esc(company(u.companyId).name) + '</div><div class="row" style="margin-top:6px">' + badge(roleLabel(u.role), 'b-brand') + badge(SCOPES[u.scope], '') + '</div></div></div>' +
+    openModal(modalShell('Account &amp; theme', '<div class="row" style="gap:12px;margin-bottom:16px">' + avatar(u, 'lg') + '<div><div class="strong" style="font-size:16px">' + esc(u.name) + '</div><div class="muted">' + esc(u.title) + ' · ' + esc(company(u.companyId).name) + '</div><div class="row" style="margin-top:6px">' + badge(roleLabel(u.role), 'b-brand') + badge(SCOPES[u.scope], '') + '</div></div></div>' +
       (Cloud.ws ? cloudAccountHtml() + '<div class="hr"></div>' : '') +
       field(Cloud.ws ? 'Prototype: acting as ' + esc(u.name) + ' (' + esc(roleLabel(u.role)) + ')' : 'Switch user (demo login)', '<select class="select" id="switch-user">' + byRole.map(([r, us]) => '<optgroup label="' + esc(roleLabel(r)) + '">' + us.map(x => '<option value="' + x.id + '"' + (x.id === u.id ? ' selected' : '') + '>' + esc(x.name) + ' — ' + esc(x.title) + '</option>').join('') + '</optgroup>').join('') + '</select>', { hint: Cloud.ws ? 'Act as any sample person to test what their role can see. This does not change your real account.' : 'Each person has their own role, company, department, manager and permissions. Switch to test what they can see.' }) +
-      '<div class="hr"></div>' + field('Theme', segEl([['', 'System'], ['light', 'Light'], ['dark', 'Dark']], t, 'theme')),
+      '<div class="hr"></div>' + field('Theme', segEl([['', 'Device setting'], ['light', 'Light'], ['dark', 'Dark']], t, 'theme'), { hint: 'Saved for you. “Device setting” follows your phone or computer’s light/dark mode.' }),
       '<button class="btn" data-act="logout">' + icon('logout') + 'Sign out</button><span class="spacer"></span><button class="btn primary" data-act="switch-user">' + icon('swap') + (Cloud.ws ? 'Act as' : 'Switch') + '</button>'));
   },
   theme: el => { applyTheme(el.dataset.v); el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); },
@@ -390,6 +421,7 @@ Object.assign(CHANGE, {
 function login(id) {
   state.session.userId = id; state.session.companyFilter = 'all'; App.ui = {}; App.route = { page: homePage() }; App.drawer = null;
   audit('login', 'session', id, 'Signed in');
+  loadTheme();
   runDeadlineSweep();
   render(); renderDrawer(); window.scrollTo(0, 0);
   toast('Signed in as ' + me().name + ' (' + roleLabel(me().role) + ')');

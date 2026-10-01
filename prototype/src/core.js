@@ -774,7 +774,7 @@ function overviewFigures(ids, per) {
   const pct = (a, b) => b ? (a - b) / Math.abs(b) * 100 : null;
   return {
     revenue: { value: p.revenue, prev: q.revenue, change: pct(p.revenue, q.revenue), good: 'up' },
-    gross: { value: p.gross, prev: q.gross, change: pct(p.gross, q.gross), good: 'up', sub: fmtPct(p.grossPct, 1) + ' margin' },
+    gross: { value: p.gross, prev: q.gross, change: pct(p.gross, q.gross), good: 'up', sub: fmtPct(p.grossPct, 1) + ' margin', marginPct: p.grossPct },
     costs: { value: -p.opexTotal, prev: -q.opexTotal, change: pct(-p.opexTotal, -q.opexTotal), good: 'down' },
     profit: { value: p.profit, prev: q.profit, change: pct(p.profit, q.profit), good: 'up', sub: fmtPct(p.netPct, 1) + ' net margin' },
     cash: { value: r.cash, prev: cashPrev, change: pct(r.cash, cashPrev), good: 'up' },
