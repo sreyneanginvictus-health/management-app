@@ -2,6 +2,14 @@
 
 Newest first. Format: `## YYYY-MM-DD · agent` → what changed → what's next.
 
+## 2026-10-01 · Claude Code — investor funding separate from revenue (branch `feat/investor-funding`)
+- New entry type **Investor / owner funding** (Finance → **Record investor funding**, or Type in Record transaction). Accounts: **Share capital** (equity) and new **2400 Borrowings received** (loans). Funding raises cash, shows on the balance sheet (share capital / borrowings) and as financing in the cash flow statement — never as revenue or profit. Reversal works as for any posted entry.
+- **Bank & cash → Where the cash came from:** opening balances, revenue received, investor & owner funding, loans received, money paid out, cash today, plus the list of funding entries.
+- **Bank accounts:** Add account and Edit (name, bank, last 4 digits, **opening balance**), audited — needed after Clear sample data, when balances start at S$0.
+- Older saved workspaces are upgraded on load (`upgradeState`): no data version bump, so real data entered since the last release is kept.
+- Sample data: a S$600k seed round (share capital). Tests: funding moves cash/capital/borrowings/financing but not revenue/profit; statements balance; reversal; upgrade of older workspaces; add account with opening balance. All green.
+- **Next:** owner tries it in the preview, then publish.
+
 ## 2026-10-01 · Claude Code — "Ledger green" redesign from Claude Design (branch `feat/finance-hub`)
 - Source: Claude Design project "Negroni App Redesign Brief" → **Negroni Ledger green handoff** (zip saved in `docs/design/ledger-green/`: README with tokens + light/dark HTML mockups of 6 screens). **Only the design changed** — data, roles, permissions, workflows, status words and Configurable settings are as before.
 - **Design system** (`styles.css`, rewritten): Ledger-green tokens for light and dark (deep green brand, lime "good" pills, red "bad" pills, mint chart colour, coral loss bars), Geist / Geist Mono, 20px cards with no borders/shadows, padded canvas with a white sidebar card, segmented tabs, round icon buttons, mono amounts in tables, fully rounded bars, the month in progress faded (bars) or dashed (lines). Delta pills colour by good vs bad (costs going up = red).

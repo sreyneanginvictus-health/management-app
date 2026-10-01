@@ -171,7 +171,7 @@ function cloudResolveOld(choice) {
   else { Cloud.ws.readOnly = true; cloudActivate(row.state || seedState(), row.updated_at); }
 }
 function cloudActivate(shared, updatedAt) {
-  state = shared;
+  state = upgradeState(shared);
   let sess = null; try { sess = JSON.parse(localStorage.getItem(SESSION_PREFIX + Cloud.ws.id) || 'null'); } catch (e) { }
   const persona = (state.users || []).find(u => u.role === 'ceo' && u.active !== false) || (state.users || [])[0] || { id: null };
   state.session = Object.assign({ userId: persona.id, companyFilter: 'all' }, sess || {});

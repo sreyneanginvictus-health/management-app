@@ -70,7 +70,7 @@ const Store = {
     load() {
       try {
         const raw = localStorage.getItem(STORE_KEY);
-        if (raw) { const s = JSON.parse(raw); if (s && s.version === VERSION) return s; }
+        if (raw) { const s = JSON.parse(raw); if (s && s.version === VERSION) return upgradeState(s); }
       } catch (e) { /* storage unavailable — fall back to fresh seed */ }
       return seedState();
     },
@@ -497,8 +497,30 @@ function coaAcct(name) { return (state.coa || []).find(a => a.name === name) || 
 function coaLine(name) { const a = coaAcct(name); return a ? a.line : 'Other operating expenses'; }
 function isNonPL(name) { const a = coaAcct(name); return !!(a && a.statement === 'SFP'); }
 function cfSection(name) { const a = coaAcct(name); return (a && a.cf) || 'operating'; }
+/* Entry types. Funding = money in from investors / owners / lenders: it raises cash and shows on the
+   balance sheet (share capital or borrowings), never as revenue or profit. */
+const TX_KINDS = { revenue: 'Revenue / receipt', expense: 'Expense / payment out', funding: 'Investor / owner funding' };
+const TX_KIND_SHORT = { revenue: 'Revenue', expense: 'Expense', funding: 'Funding' };
+function isInflow(t) { return t.kind !== 'expense'; }
+function fundingCats() { return (state.coa || []).filter(a => a.dir === 'in').sort((a, b) => (a.line === 'Share capital' ? 0 : 1) - (b.line === 'Share capital' ? 0 : 1)).map(a => a.name); }
+function catsForKind(kind) { return kind === 'revenue' ? revenueCats() : kind === 'funding' ? fundingCats() : expenseCats(); }
+// Money raised: equity (share capital) and loans received, from posted funding entries.
+function fundingTotals(ids, from, to) {
+  const tx = txIn(ids, from, to).filter(t => t.kind === 'funding');
+  const equity = sum(tx.filter(t => coaLine(t.category) === 'Share capital'), t => t.amount);
+  const loans = sum(tx.filter(t => coaLine(t.category) === 'Borrowings'), t => t.amount);
+  return { equity, loans, total: equity + loans, entries: tx };
+}
+// Bring older saved workspaces up to date without resetting their data.
+function upgradeState(s) {
+  if (!s || !s.coa) return s;
+  const sc = s.coa.find(a => a.code === '3100'); if (sc && !sc.dir) sc.dir = 'in';
+  const rp = s.coa.find(a => a.code === '2500'); if (rp && !rp.dir) rp.dir = 'out';
+  if (!s.coa.some(a => a.code === '2400')) s.coa.push({ code: '2400', name: 'Borrowings received (investor / bank loans)', line: 'Borrowings', statement: 'SFP', type: 'sfp', gst: 'OS', cf: 'financing', dir: 'in' });
+  return s;
+}
 function revenueCats() { return (state.coa || []).filter(a => a.type === 'income').map(a => a.name); }
-function expenseCats() { return (state.coa || []).filter(a => a.type === 'expense' || (a.type === 'sfp' && a.cf !== 'financing') || a.name === 'Repayment of borrowings').map(a => a.name); }
+function expenseCats() { return (state.coa || []).filter(a => a.dir !== 'in' && (a.type === 'expense' || (a.type === 'sfp' && a.cf !== 'financing') || a.dir === 'out' || a.name === 'Repayment of borrowings')).map(a => a.name); }
 function createTransaction(data, opts) {
   const t = Object.assign({ id: uid('tx'), no: 'TX-' + String(++state.counters.tx).padStart(5, '0'), status: 'draft', docs: [], createdBy: state.session.userId, createdAt: nowISO() }, data);
   state.transactions.push(t);
@@ -551,7 +573,7 @@ function accountBalance(a, asOf) {
   let b = a.opening;
   for (const t of state.transactions) {
     if (t.accountId !== a.id || !posted(t) || (asOf && t.date > asOf)) continue;
-    b += (t.kind === 'revenue' ? 1 : -1) * t.amount;
+    b += (isInflow(t) ? 1 : -1) * t.amount;
   }
   return b;
 }
@@ -609,15 +631,16 @@ function balanceSheet(ids, asOf) {
   const ar = arOutstanding(ids); const ap = apOutstanding(ids);
   const cos = state.companies.filter(c => ids.includes(c.id));
   const fixed = sum(cos, c => c.fixedAssets || 0) + sum(txIn(ids, null, asOf).filter(t => cfSection(t.category) === 'investing'), t => t.amount);
-  const loans = sum(cos, c => c.loans || 0) - sum(txIn(ids, null, asOf).filter(t => t.category === 'Repayment of borrowings'), t => t.amount);
-  const capital = sum(cos, c => c.capital || 0);
+  const raised = fundingTotals(ids, null, asOf);
+  const loans = sum(cos, c => c.loans || 0) + raised.loans - sum(txIn(ids, null, asOf).filter(t => t.category === 'Repayment of borrowings'), t => t.amount);
+  const capital = sum(cos, c => c.capital || 0) + raised.equity;
   const assets = cash + ar + fixed; const liab = ap + loans;
   return { cash, ar, fixed, assets, ap, loans, liab, capital, retained: assets - liab - capital, equity: assets - liab };
 }
 function cashFlow(ids, from, to) {
   const tx = txIn(ids, from, to);
   const sec = { operating: { in: 0, out: 0 }, investing: { in: 0, out: 0 }, financing: { in: 0, out: 0 } };
-  for (const t of tx) { const s = cfSection(t.category); if (t.kind === 'revenue') sec[s].in += t.amount; else sec[s].out += t.amount; }
+  for (const t of tx) { const s = t.kind === 'funding' ? 'financing' : cfSection(t.category); if (isInflow(t)) sec[s].in += t.amount; else sec[s].out += t.amount; }
   const opening = cashPosition(ids, ymd(addDays(parseD(from), -1)));
   const net = sum(Object.values(sec), s => s.in - s.out);
   return { sec, opening, net, closing: opening + net };

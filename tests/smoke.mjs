@@ -150,6 +150,26 @@ ok((await E("myNotifications().filter(n => n.title.includes('cash below')).lengt
 await E('state.settings.cashAlertMonths = 2');
 console.log('Runway (months):', await E("state.companies.map(c => company(c.id).short + ' ' + cashRunway([c.id]).months.toFixed(1)).join(', ')"));
 
+// 9b) Investor funding: raises cash and share capital / borrowings, never revenue or profit; statements still balance.
+await E("login('u_sokha')");
+ok(await E("catsForKind('funding').includes('Share capital') && catsForKind('funding').includes('Borrowings received (investor / bank loans)')"), 'funding categories offered');
+ok(!(await E("expenseCats().some(c => fundingCats().includes(c))")), 'funding accounts are not offered as expenses');
+const fb = await E("(() => { const ids = scopeCompanyIds(); return { cash: cashPosition(ids), rev: pnl(ids, CUR_YEAR + '-01-01', TODAY_S).revenue, net: ifrsPL(ids, CUR_YEAR + '-01-01', TODAY_S).profit, cap: balanceSheet(ids).capital, loans: balanceSheet(ids).loans, fin: ifrsCF(ids, CUR_YEAR + '-01-01', TODAY_S).financing }; })()");
+const ftx = await E("createTransaction({ kind: 'funding', date: TODAY_S, companyId: 'c_lp', departmentId: 'd_fin', category: 'Share capital', amount: 250000, accountId: 'a_c_lp_op', party: 'Test investor', memo: 'Series A tranche', docs: [{ id: 'fd', name: 'subscription.pdf', size: 1 }] }).id");
+await E(`postTransaction(get('transactions','${ftx}'))`);
+await E("postTransaction(createTransaction({ kind: 'funding', date: TODAY_S, companyId: 'c_lp', departmentId: 'd_fin', category: 'Borrowings received (investor / bank loans)', amount: 50000, accountId: 'a_c_lp_op', party: 'Test lender', memo: 'Bridge loan', docs: [{ id: 'fl', name: 'loan.pdf', size: 1 }] }))");
+const fa = await E("(() => { const ids = scopeCompanyIds(); return { cash: cashPosition(ids), rev: pnl(ids, CUR_YEAR + '-01-01', TODAY_S).revenue, net: ifrsPL(ids, CUR_YEAR + '-01-01', TODAY_S).profit, cap: balanceSheet(ids).capital, loans: balanceSheet(ids).loans, fin: ifrsCF(ids, CUR_YEAR + '-01-01', TODAY_S).financing, check: ifrsSFP(ids, TODAY_S).check }; })()");
+ok(Math.round(fa.cash - fb.cash) === 300000, 'funding raises cash by 300k');
+ok(Math.round(fa.rev - fb.rev) === 0 && Math.round(fa.net - fb.net) === 0, 'funding does not touch revenue or profit');
+ok(Math.round(fa.cap - fb.cap) === 250000 && Math.round(fa.loans - fb.loans) === 50000, 'share capital +250k, borrowings +50k on the balance sheet');
+ok(Math.round(fa.fin - fb.fin) === 300000, 'shown as financing in the cash flow statement');
+ok(Math.abs(fa.check) < 1, 'statement of financial position still balances');
+await E(`reverseTransaction(get('transactions','${ftx}'), 'test')`);
+ok(Math.round((await E('balanceSheet(scopeCompanyIds()).capital')) - fb.cap) === 0, 'reversing funding takes the capital back out');
+ok(await E("(() => { const s = { coa: JSON.parse(JSON.stringify(state.coa)).filter(a => a.code !== '2400').map(a => (delete a.dir, a)) }; upgradeState(s); return s.coa.some(a => a.code === '2400' && a.dir === 'in') && s.coa.find(a => a.code === '3100').dir === 'in'; })()"), 'older workspaces get the funding accounts on load');
+await E("ACT['acct-edit']({ dataset: {} })"); await E("document.querySelector('#modal-root [name=name]').value = 'DBS current'; document.querySelector('#modal-root [name=opening]').value = '15000'; ACT['acct-save']({ dataset: {} })");
+ok((await E("state.accounts.find(a => a.name === 'DBS current').opening")) === 15000, 'add a bank account with an opening balance');
+
 // 10) Clear sample data → empty workspace for real data: every role, every page, no errors; real entries work from scratch.
 await E("login('u_kim'); clearSampleData()");
 ok((await E("['tasks','projects','approvals','transactions','invoices','bills','budgets','kpis','risks','documents','events','reportNotes'].every(k => state[k].length === 0)")), 'sample records removed');

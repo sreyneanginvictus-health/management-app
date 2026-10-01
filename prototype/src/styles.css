@@ -539,3 +539,4 @@ textarea.input{resize:vertical;min-height:84px}
 .proj-task{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;font-size:13px}
 .proj-task:hover{background:var(--surface-2)}
 @media (max-width:1180px){.proj-split,.proj-cols{grid-template-columns:minmax(0,1fr)}}
+.form-grid .select,.form-grid .input,.field > .select,.field > span > .select{width:100%}
